@@ -33,6 +33,20 @@ If you're reviewing this project for submission, start here:
    - Deployment architecture
    - Integration patterns
 
+3b. **[Advanced ADK Features](ADVANCED_ADK_FEATURES.md)** ⚡ ADVANCED FEATURES
+   - SequentialAgent, ParallelAgent, LoopAgent usage
+   - Agent-to-Agent (A2A) communication
+   - Function, Custom, Built-in, and MCP tools
+   - Callbacks (before/after) for tools and agents
+   - Observability (tracing, metrics, logging)
+   - Tool response alterations
+
+3c. **[Detailed Architecture](ARCHITECTURE_DETAILED.md)** 📊 DETAILED DIAGRAMS
+   - Complete execution flow diagrams
+   - Callback execution timeline
+   - Tool response enhancement flow
+   - Performance metrics tracking
+
 4. **[Security & PII Protection](SECURITY_AND_PII_PROTECTION.md)** 🔒 SECURITY
    - Security principles
    - Multi-layer PII detection
