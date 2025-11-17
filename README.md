@@ -26,38 +26,57 @@ The **AI-Powered Global Vacation Planner** is a sophisticated multi-agent applic
 
 ## Quick Start
 
+### 🚀 For Nov 25th Submission - See [Quick Start Guide](docs/QUICK_START_GUIDE.md)
+
+**New to the project?** Follow our comprehensive [Quick Start Guide](docs/QUICK_START_GUIDE.md) for step-by-step setup with MCP integration.
+
 ### Prerequisites
 
-- Python 3.11 or higher
-- Google ADK installed
-- API keys for weather, flight, hotel services
-- PostgreSQL 15+
-- Redis 7+
+- Python 3.11 or higher ✅ FREE
+- Google ADK ✅ FREE
+- Google Cloud account with $300 free credits ✅ FREE
+- API keys for weather (OpenWeather - free tier) ✅ FREE
+- Currency API (ExchangeRate - free tier) ✅ FREE
 
-### Installation
+**No PostgreSQL or Redis needed for MVP!** Uses SQLite (built-in) and in-memory caching.
+
+### Quick Installation (5 minutes)
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/AI-Powered_Vacation_Planner.git
+git clone https://github.com/RBATHINENI78/AI-Powered_Vacation_Planner.git
 cd AI-Powered_Vacation_Planner
 
 # Create virtual environment
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-# Install dependencies
+# Install dependencies (simplified for MVP)
 pip install -r requirements.txt
 
 # Set up environment variables
 cp .env.example .env
-# Edit .env with your API keys
+# Edit .env with your API keys:
+#   - GOOGLE_API_KEY (Gemini)
+#   - OPENWEATHER_API_KEY
+#   - EXCHANGERATE_API_KEY
 
-# Initialize database
-python scripts/init_db.py
-
-# Run the application
+# Run with MCP integration
 python src/main.py
+
+# Or use ADK web interface
+adk web src/main.py
 ```
+
+### Key Features in MVP
+
+✅ **Multi-Agent System**: 7 specialized agents coordinated by orchestrator
+✅ **MCP Integration**: Weather and Currency MCP servers
+✅ **Google ADK**: Full agent framework with Gemini
+✅ **Security**: PII detection and filtering
+✅ **Free Tier**: All services $0 with free credits
+
+**Deployment Ready**: Deploy to Cloud Run in 5 minutes (see [Quick Start Guide](docs/QUICK_START_GUIDE.md))
 
 ---
 

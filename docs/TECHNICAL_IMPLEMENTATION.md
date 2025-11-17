@@ -21,41 +21,52 @@ This document provides detailed technical implementation guidance for building t
 
 ## Technology Stack
 
-### Core Technologies
+### Core Technologies (MVP - Nov 2025 Submission)
 
 ```yaml
 Framework:
-  - Google ADK (Agent Development Kit)
-  - Python 3.11+
-  - Model Context Protocol (MCP)
+  - Google ADK (Agent Development Kit) ✅ FREE
+  - Python 3.11+ ✅ FREE
+  - ADK Web Interface (built-in) ✅ FREE
+
+Deployment:
+  - Vertex AI (Google Cloud) ✅ FREE ($300 credits)
+  - Cloud Run ✅ FREE (2M requests/month)
 
 AI/ML:
-  - Google Gemini Models
-  - LangChain (optional for advanced workflows)
-  - Sentence Transformers (for embeddings)
+  - Google Gemini API ✅ FREE tier (15 RPM)
+  - Pattern-based PII detection (regex) ✅ FREE
 
-Data Storage:
-  - PostgreSQL 15+ (persistent data)
-  - Redis 7+ (session management & caching)
-  - S3/GCS (document storage)
+Data Storage (Simplified for MVP):
+  - SQLite (built-in Python) ✅ FREE
+  - In-memory session cache ✅ FREE
+  - Local file storage ✅ FREE
 
 APIs & Integrations:
-  - OpenWeather API (weather data)
-  - Amadeus API (flights & hotels)
-  - Rentalcars.com API (car rentals)
-  - ExchangeRate-API (currency conversion)
-  - VisaHQ API (visa information)
+  - OpenWeather API ✅ FREE tier
+  - ExchangeRate-API ✅ FREE tier
+  - Public visa information sources ✅ FREE
 
 Security:
-  - Presidio (PII detection)
-  - Cryptography library (encryption)
-  - Python-dotenv (secrets management)
+  - Built-in regex PII detection ✅ FREE
+  - Python-dotenv (secrets) ✅ FREE
 
 Development Tools:
-  - pytest (testing)
-  - black (code formatting)
-  - mypy (type checking)
-  - pre-commit (git hooks)
+  - pytest (testing) ✅ FREE
+  - ADK CLI tools ✅ FREE
+
+Total Cost: $0 with free tiers
+```
+
+### Future Production Enhancements (Post-Submission)
+
+```yaml
+When scaling beyond demo:
+  - Cloud SQL PostgreSQL (f1-micro free tier or ~$7/month)
+  - Upstash Redis (free tier: 10K commands/day)
+  - Google Cloud Storage (5GB free)
+  - Advanced PII detection (Microsoft Presidio)
+  - Premium APIs (Amadeus for real bookings)
 ```
 
 ---
