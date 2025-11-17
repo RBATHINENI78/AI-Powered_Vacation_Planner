@@ -1,0 +1,33 @@
+# Google ADK and AI
+google-adk>=1.0.0
+google-cloud-aiplatform>=1.38.0
+google-generativeai>=0.3.0
+
+# MCP (Model Context Protocol)
+mcp>=0.5.0
+
+# Web framework
+aiohttp>=3.9.0
+httpx>=0.25.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# Utilities
+pydantic>=2.5.0
+python-dotenv>=1.0.0
+loguru>=0.7.0
+
+# Google Cloud
+google-cloud-trace>=1.11.0
+google-cloud-monitoring>=2.15.0
+google-cloud-logging>=3.8.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+
+# Code quality
+black>=23.9.0
+isort>=5.12.0
+flake8>=6.1.0
