@@ -1,39 +1,59 @@
 """
 Main entry point for AI-Powered Vacation Planner
-Basic implementation for Nov 25th submission
+Modular implementation with Advanced ADK Features
+
+Features:
+- Sequential Agent for research phase
+- Parallel Agent for booking phase
+- Loop Agent for budget optimization
+- A2A communication between agents
+- Full observability (tracing, metrics, logging)
 """
 
 import os
+import sys
 import asyncio
 from dotenv import load_dotenv
 from loguru import logger
-from agents.orchestrator import OrchestratorAgent
 
-# Configure logging
-logger.add(
-    "logs/vacation_planner_{time}.log",
-    rotation="1 day",
-    retention="7 days",
-    level="INFO"
-)
+# Add project root to path for imports
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
+from src.agents import OrchestratorAgent
+from src.observability import setup_logging, metrics, tracer
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging
+os.makedirs("logs", exist_ok=True)
+setup_logging(level="INFO", log_file="logs/vacation_planner.log")
 
 
 async def main():
     """Main application entry point"""
 
     print("=" * 70)
-    print("🌍 AI-POWERED VACATION PLANNER")
+    print(" AI-POWERED VACATION PLANNER")
+    print(" with Advanced ADK Features")
     print("=" * 70)
     print()
 
     # Check environment variables
-    if not os.getenv('GOOGLE_API_KEY'):
-        print("❌ Error: GOOGLE_API_KEY not set in environment")
-        print("   Please copy .env.example to .env and add your API key")
-        return
+    required_keys = ['GOOGLE_API_KEY', 'OPENWEATHER_API_KEY', 'EXCHANGERATE_API_KEY']
+    missing_keys = [key for key in required_keys if not os.getenv(key)]
+
+    if missing_keys:
+        print("Warning: Some API keys not set:")
+        for key in missing_keys:
+            print(f"   - {key}")
+        print("   Some features may not work correctly.")
+        print()
+
+    # Start tracing
+    trace_id = tracer.start_trace("vacation_planning")
 
     # Sample vacation request
     user_request = """
@@ -45,59 +65,176 @@ async def main():
     Interests: Museums, French cuisine, architecture, wine tasting
     """
 
-    print("📝 VACATION REQUEST")
+    print("VACATION REQUEST")
     print("-" * 70)
     print(user_request.strip())
     print()
 
     # Initialize orchestrator
-    logger.info("Initializing Orchestrator Agent")
+    logger.info("Initializing Orchestrator Agent with modular architecture")
     orchestrator = OrchestratorAgent()
 
-    print("🤖 Processing your vacation request...")
+    # Record metric
+    metrics.increment("vacation_requests_total", labels={"destination": "Paris"})
+
+    print("Processing your vacation request...")
+    print()
+    print("Phases:")
+    print("  1. Security Check (PII Detection)")
+    print("  2. Research Phase (Sequential: Destination -> Immigration -> Financial)")
+    print("  3. Booking Phase (Parallel: Flights, Hotels, Car, Activities)")
+    print("  4. Optimization Phase (Loop: Budget Optimization with HITL)")
     print()
 
     try:
-        # Generate vacation plan
-        result = await orchestrator.plan_vacation(user_request)
+        # Generate vacation plan with tracing
+        with tracer.span_context("orchestrator_execution", trace_id) as span:
+            span.set_attribute("destination", "Paris, France")
+            span.set_attribute("travelers", 2)
+
+            result = await orchestrator.plan_vacation(user_request)
+
+            span.set_attribute("status", result.get("status", "unknown"))
 
         # Display results
         print("=" * 70)
-        print("✅ VACATION PLAN GENERATED")
+        print(" VACATION PLAN GENERATED")
         print("=" * 70)
         print()
-        print(f"📋 Session ID: {result['session_id']}")
-        print(f"🌍 Destination: {result.get('destination', 'N/A')}")
-        print(f"✅ Status: {result['status']}")
+        print(f"Session ID: {result['session_id']}")
+        print(f"Destination: {result.get('destination', 'N/A')}")
+        print(f"Status: {result['status']}")
+        print(f"Total Time: {result.get('total_time_seconds', 0):.2f}s")
         print()
 
+        # Display phase summary
+        if 'summary' in result:
+            summary = result['summary']
+            print("EXECUTION SUMMARY")
+            print("-" * 70)
+            print(f"  Phases Completed: {summary.get('phases_completed', 0)}")
+            print(f"  Security Status: {summary.get('security_status', 'N/A')}")
+            print(f"  Research Steps: {summary.get('research_steps', 0)}")
+            print(f"  Booking Speedup: {summary.get('booking_speedup', 1.0):.2f}x")
+            print(f"  Optimization Savings: ${summary.get('optimization_savings', 0):,.2f}")
+            print(f"  Final Cost: ${summary.get('final_cost', 0):,.2f}")
+            print(f"  Within Budget: {'Yes' if summary.get('within_budget', False) else 'No'}")
+            print()
+
+        # Display itinerary
         if 'plan' in result and 'itinerary' in result['plan']:
             print("=" * 70)
-            print("📖 YOUR COMPLETE VACATION ITINERARY")
+            print(" YOUR COMPLETE VACATION ITINERARY")
             print("=" * 70)
             print()
             print(result['plan']['itinerary'])
             print()
             print("=" * 70)
-            print(f"🤖 Generated by: {result['plan'].get('model', 'AI')}")
-            print(f"⏰ Generated at: {result['plan'].get('generated_at', 'N/A')}")
+            print(f"Generated by: {result['plan'].get('model', 'AI')}")
+            print(f"Generated at: {result['plan'].get('generated_at', 'N/A')}")
             print("=" * 70)
         else:
-            print("⚠️  No itinerary generated")
+            print("No itinerary generated")
 
         print()
-        print("✨ Vacation planning completed successfully!")
+        print(" Vacation planning completed successfully!")
         print()
+
+        # Record success metric
+        metrics.increment("vacation_requests_success", labels={"destination": "Paris"})
+
+        # Get trace summary
+        trace_summary = tracer.get_trace_summary(trace_id)
+        logger.info(f"Trace completed: {trace_summary}")
 
     except Exception as e:
         logger.error(f"Error in main: {e}")
-        print(f"❌ Error: {e}")
+        print(f"Error: {e}")
         print()
+
+        # Record error metric
+        metrics.increment("vacation_requests_error", labels={"error_type": type(e).__name__})
+
+
+async def demo_agents():
+    """Demo individual agents for testing"""
+    from src.agents import (
+        SecurityGuardianAgent,
+        DestinationIntelligenceAgent,
+        ImmigrationSpecialistAgent,
+        FinancialAdvisorAgent,
+        ExperienceCuratorAgent
+    )
+
+    print("Testing Individual Agents")
+    print("=" * 70)
+
+    # Test Security Guardian
+    print("\n1. Security Guardian Agent")
+    security = SecurityGuardianAgent()
+    result = await security.execute({
+        "text": "My SSN is 123-45-6789 and my email is test@example.com"
+    })
+    print(f"   PII Detected: {result.get('pii_detected')}")
+    print(f"   Risk Level: {result.get('risk_level')}")
+
+    # Test Destination Intelligence
+    print("\n2. Destination Intelligence Agent")
+    destination = DestinationIntelligenceAgent()
+    result = await destination.execute({
+        "city": "Paris",
+        "country": "France"
+    })
+    print(f"   Weather: {result.get('current_weather', {}).get('conditions', 'N/A')}")
+    print(f"   Temp: {result.get('current_weather', {}).get('temperature', 'N/A')}C")
+
+    # Test Immigration Specialist
+    print("\n3. Immigration Specialist Agent")
+    immigration = ImmigrationSpecialistAgent()
+    result = await immigration.execute({
+        "citizenship": "US",
+        "destination": "France",
+        "duration_days": 10
+    })
+    visa_info = result.get('visa_requirements', {})
+    print(f"   Visa Required: {visa_info.get('required', 'N/A')}")
+    print(f"   Max Stay: {visa_info.get('max_stay', 'N/A')}")
+
+    # Test Financial Advisor
+    print("\n4. Financial Advisor Agent")
+    financial = FinancialAdvisorAgent()
+    result = await financial.execute({
+        "destination": "Paris, France",
+        "budget": 4500,
+        "travelers": 2,
+        "nights": 10,
+        "travel_style": "moderate"
+    })
+    budget = result.get('budget_breakdown', {})
+    print(f"   Total Estimate: ${budget.get('total', 0):,.2f}")
+    print(f"   Status: {result.get('budget_assessment', {}).get('status', 'N/A')}")
+
+    # Test Experience Curator
+    print("\n5. Experience Curator Agent")
+    experience = ExperienceCuratorAgent()
+    result = await experience.execute({
+        "destination": "Paris, France",
+        "interests": ["museums", "food", "architecture"],
+        "nights": 10
+    })
+    print(f"   Activities Found: {len(result.get('top_recommendations', []))}")
+    print(f"   Itinerary Days: {len(result.get('suggested_itinerary', []))}")
+
+    print("\n" + "=" * 70)
+    print("All agents tested successfully!")
 
 
 if __name__ == "__main__":
-    # Create logs directory
-    os.makedirs("logs", exist_ok=True)
+    import sys
 
-    # Run main
-    asyncio.run(main())
+    if len(sys.argv) > 1 and sys.argv[1] == "--demo":
+        # Run agent demo
+        asyncio.run(demo_agents())
+    else:
+        # Run main application
+        asyncio.run(main())

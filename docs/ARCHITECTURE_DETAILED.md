@@ -66,7 +66,7 @@ sequenceDiagram
     participant O as Orchestrator
     participant CB as Callbacks
     participant SEQ as Sequential Agent
-    participant PAR as Parallel Agent
+    participant PARN as Parallel Agent
     participant LOOP as Loop Agent
     participant OBS as Observability
 
@@ -89,26 +89,26 @@ sequenceDiagram
     SEQ->>SEQ: Financial Setup
     SEQ-->>O: Research Results
 
-    O->>PAR: Execute Booking Phase
+    O->>PARN: Execute Booking Phase
 
     par Parallel Execution
-        PAR->>CB: before_tool_execute(flight_search)
-        CB-->>PAR: proceed
-        PAR->>PAR: Flight Search
-        PAR->>CB: after_tool_execute
+        PARN->>CB: before_tool_execute(flight_search)
+        CB-->>PARN: proceed
+        PARN->>PARN: Flight Search
+        PARN->>CB: after_tool_execute
 
-        PAR->>CB: before_tool_execute(hotel_search)
-        CB-->>PAR: proceed
-        PAR->>PAR: Hotel Search
-        PAR->>CB: after_tool_execute
+        PARN->>CB: before_tool_execute(hotel_search)
+        CB-->>PARN: proceed
+        PARN->>PARN: Hotel Search
+        PARN->>CB: after_tool_execute
 
-        PAR->>CB: before_tool_execute(car_search)
-        CB-->>PAR: proceed
-        PAR->>PAR: Car Search
-        PAR->>CB: after_tool_execute
+        PARN->>CB: before_tool_execute(car_search)
+        CB-->>PARN: proceed
+        PARN->>PARN: Car Search
+        PARN->>CB: after_tool_execute
     end
 
-    PAR-->>O: Booking Results
+    PARN-->>O: Booking Results
 
     O->>LOOP: Optimize Budget
 
