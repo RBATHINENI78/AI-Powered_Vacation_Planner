@@ -152,9 +152,21 @@ class AmadeusClient:
             else:
                 return {"error": response.text, "status": response.status_code}
 
-    async def get_airport_code(self, city_name: str) -> str:
-        """Get IATA airport code for a city"""
+    async def get_airport_code(self, location: str) -> dict:
+        """
+        Get IATA airport code for a city/location using Amadeus API.
+
+        Args:
+            location: City name, can include country (e.g., "Charlotte, USA", "Kochi, India", "Kerala, India")
+
+        Returns:
+            Dict with airport code, name, and city info
+        """
         token = await self._get_token()
+
+        # Extract city name from location string (handle "City, Country" format)
+        parts = [p.strip() for p in location.split(",")]
+        city_name = parts[0]  # Use first part as city name
 
         url = f"{self.base_url}/v1/reference-data/locations"
         headers = {"Authorization": f"Bearer {token}"}
@@ -163,24 +175,78 @@ class AmadeusClient:
             "subType": "AIRPORT,CITY"
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15) as client:
             response = await client.get(url, headers=headers, params=params)
 
             if response.status_code == 200:
                 data = response.json()
-                if data.get("data"):
-                    return data["data"][0]["iataCode"]
+                if data.get("data") and len(data["data"]) > 0:
+                    # Find the best match - prefer airports over cities
+                    best_match = None
+                    for loc in data["data"]:
+                        if loc.get("subType") == "AIRPORT":
+                            best_match = loc
+                            break
+                        elif loc.get("subType") == "CITY" and not best_match:
+                            best_match = loc
 
-            # Fallback to common mappings
-            city_codes = {
-                "New York": "JFK", "NYC": "JFK",
-                "Paris": "CDG",
-                "London": "LHR",
-                "Tokyo": "NRT",
-                "Los Angeles": "LAX",
-                "Chicago": "ORD",
-                "Kochi": "COK",
-                "Mumbai": "BOM",
-                "Delhi": "DEL"
+                    if best_match:
+                        return {
+                            "code": best_match["iataCode"],
+                            "name": best_match.get("name", city_name),
+                            "city": best_match.get("address", {}).get("cityName", city_name),
+                            "country": best_match.get("address", {}).get("countryName", ""),
+                            "type": best_match.get("subType", "UNKNOWN")
+                        }
+
+            # If API fails, return error with the searched term
+            logger.warning(f"Could not find airport code for: {location}")
+            return {
+                "code": None,
+                "error": f"No airport found for '{location}'",
+                "searched": city_name
             }
-            return city_codes.get(city_name, city_name[:3].upper())
+
+    async def get_city_code(self, location: str) -> dict:
+        """
+        Get IATA city code for hotel searches.
+
+        Args:
+            location: City name, can include country (e.g., "Kochi, India", "Paris, France")
+
+        Returns:
+            Dict with city code and info
+        """
+        token = await self._get_token()
+
+        # Extract city name from location string
+        parts = [p.strip() for p in location.split(",")]
+        city_name = parts[0]
+
+        url = f"{self.base_url}/v1/reference-data/locations"
+        headers = {"Authorization": f"Bearer {token}"}
+        params = {
+            "keyword": city_name,
+            "subType": "CITY"
+        }
+
+        async with httpx.AsyncClient(timeout=15) as client:
+            response = await client.get(url, headers=headers, params=params)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("data") and len(data["data"]) > 0:
+                    city_data = data["data"][0]
+                    return {
+                        "code": city_data["iataCode"],
+                        "name": city_data.get("name", city_name),
+                        "country": city_data.get("address", {}).get("countryName", "")
+                    }
+
+            # If API fails, return error
+            logger.warning(f"Could not find city code for: {location}")
+            return {
+                "code": None,
+                "error": f"No city found for '{location}'",
+                "searched": city_name
+            }

@@ -30,22 +30,18 @@ async def search_hotels_amadeus(
     """
     client = AmadeusClient()
 
-    # Get city code
-    city_codes = {
-        "Paris": "PAR",
-        "London": "LON",
-        "Tokyo": "TYO",
-        "New York": "NYC",
-        "Los Angeles": "LAX",
-        "Rome": "ROM",
-        "Barcelona": "BCN",
-        "Kochi": "COK",
-        "Mumbai": "BOM",
-        "Delhi": "DEL"
-    }
+    # Get city code dynamically from Amadeus API
+    city_info = await client.get_city_code(destination)
 
-    city = destination.split(",")[0].strip()
-    city_code = city_codes.get(city, city[:3].upper())
+    # Check if city code was found
+    if not city_info.get("code"):
+        return {
+            "error": f"Could not find city code for: {destination}",
+            "details": city_info.get("error", "Unknown error"),
+            "suggestion": "Please specify a major city name"
+        }
+
+    city_code = city_info["code"]
 
     # Search hotels
     result = await client.search_hotels(
@@ -60,10 +56,18 @@ async def search_hotels_amadeus(
     if "error" in result:
         return result
 
+    # Add city info to result
+    result["city_info"] = city_info
+
     # Parse and categorize results
     hotels = result.get("data", [])
     if not hotels:
-        return {"error": "No hotels found", "destination": destination}
+        return {
+            "error": f"No hotels found in Amadeus test environment for {destination}",
+            "destination": destination,
+            "city_info": city_info,
+            "note": "The Amadeus test API has limited sample data. Try cities like Paris, London, New York for test data, or use production API for real data."
+        }
 
     # Sort by price
     hotels.sort(key=lambda x: float(x.get("offers", [{}])[0].get("price", {}).get("total", 99999)))
@@ -152,6 +156,23 @@ def search_hotels_amadeus_sync(
     rooms: int = 1
 ) -> Dict[str, Any]:
     """Synchronous version of search_hotels_amadeus"""
-    return asyncio.run(search_hotels_amadeus(
-        destination, check_in, check_out, guests, rooms
-    ))
+    import nest_asyncio
+    nest_asyncio.apply()
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If already in an event loop, create a new task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    search_hotels_amadeus(destination, check_in, check_out, guests, rooms)
+                )
+                return future.result(timeout=30)
+        else:
+            return asyncio.run(search_hotels_amadeus(
+                destination, check_in, check_out, guests, rooms
+            ))
+    except Exception as e:
+        return {"error": str(e)}

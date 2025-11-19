@@ -315,15 +315,26 @@ def search_flights(origin: str, destination: str, departure_date: str, return_da
     # Try real API first if credentials are available
     if USE_REAL_API:
         try:
+            print(f"Calling Amadeus flight API: {origin} -> {destination}, {departure_date} to {return_date}, {travelers} travelers")
             result = search_flights_amadeus_sync(origin, destination, departure_date, return_date, travelers)
+            print(f"Amadeus flight API response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}")
             if "error" not in result:
+                print(f"Amadeus flight API success! Found {len(result.get('flights', {}).get('budget', []))} budget flights")
                 return result
+            else:
+                # Log the full error details
+                print(f"Amadeus flight API error: {result}")
         except Exception as e:
-            pass  # Fall back to mock data
+            import traceback
+            print(f"Amadeus flight API exception: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            # Fall back to mock data
 
     # Fall back to mock data
     result = search_flights_data(origin, destination, travelers)
     if "error" in result:
+        # Return more helpful error with API status
+        result["api_status"] = "Amadeus API credentials configured" if USE_REAL_API else "Using mock data (no Amadeus credentials)"
         return result
     result["departure_date"] = departure_date
     result["return_date"] = return_date
@@ -347,11 +358,20 @@ def search_hotels(destination: str, check_in: str, check_out: str, guests: int =
     # Try real API first if credentials are available
     if USE_REAL_API:
         try:
+            print(f"Calling Amadeus hotel API: {destination}, {check_in} to {check_out}, {guests} guests, {rooms} rooms")
             result = search_hotels_amadeus_sync(destination, check_in, check_out, guests, rooms)
+            print(f"Amadeus hotel API response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}")
             if "error" not in result:
+                print(f"Amadeus hotel API success! Found {len(result.get('hotels', {}).get('budget', []))} budget hotels")
                 return result
+            else:
+                # Log the full error details
+                print(f"Amadeus hotel API error: {result}")
         except Exception as e:
-            pass  # Fall back to mock data
+            import traceback
+            print(f"Amadeus hotel API exception: {str(e)}")
+            print(f"Traceback: {traceback.format_exc()}")
+            # Fall back to mock data
 
     # Fall back to mock data
     try:
@@ -362,6 +382,8 @@ def search_hotels(destination: str, check_in: str, check_out: str, guests: int =
         nights = 7
     result = search_hotels_data(destination, nights, guests, rooms)
     if "error" in result:
+        # Return more helpful error with API status
+        result["api_status"] = "Amadeus API credentials configured" if USE_REAL_API else "Using mock data (no Amadeus credentials)"
         return result
     result["check_in"] = check_in
     result["check_out"] = check_out
@@ -632,9 +654,22 @@ You are an AI Vacation Planner that creates comprehensive, detailed trip plans f
 3. When tools return "limitation" or "error", acknowledge this and provide conceptual alternatives
 4. ALWAYS call generate_trip_document at the end
 
-## HUMAN-IN-THE-LOOP: Citizenship Required
+## DOMESTIC vs INTERNATIONAL TRAVEL
 
-**CRITICAL**: If the user has NOT provided their citizenship/nationality:
+**CRITICAL**: Determine if this is domestic or international travel:
+- If origin and destination are in the SAME country (e.g., "New York, USA" to "Los Angeles, USA"):
+  - SKIP visa/immigration requirements (not needed for domestic travel)
+  - SKIP currency exchange (same currency)
+  - Focus on weather, flights, hotels, and itinerary
+
+- If origin and destination are in DIFFERENT countries (international travel):
+  - Include visa/immigration requirements
+  - Include currency exchange
+  - Follow the HUMAN-IN-THE-LOOP for citizenship below
+
+## HUMAN-IN-THE-LOOP: Citizenship Required (International Travel Only)
+
+**CRITICAL**: For INTERNATIONAL travel, if the user has NOT provided their citizenship/nationality:
 - You MUST ask the user for their citizenship BEFORE proceeding
 - Say: "To provide accurate visa and immigration requirements, I need to know your citizenship/nationality. Could you please provide this information?"
 - WAIT for the user's response before continuing with the plan
@@ -659,8 +694,10 @@ If tools had limitations: "However, I encountered some limitations with my tools
 - Humidity: XX%
 - Packing Suggestions: [based on weather]
 
-### Visa & Immigration Requirements
-**IMPORTANT**: Use your knowledge to generate COMPREHENSIVE immigration details. Include:
+### Visa & Immigration Requirements (INTERNATIONAL TRAVEL ONLY)
+**Skip this section entirely for domestic travel (same country).**
+
+For international travel, use your knowledge to generate COMPREHENSIVE immigration details. Include:
 
 **Visa Requirement**
 - Visa required: Yes/No
@@ -702,8 +739,10 @@ If tools had limitations: "However, I encountered some limitations with my tools
 - Any bilateral agreements
 - Specific requirements or benefits
 
-### Currency Exchange
-Call get_currency_exchange with the user's ORIGIN LOCATION and DESTINATION LOCATION (not currency codes).
+### Currency Exchange (INTERNATIONAL TRAVEL ONLY)
+**Skip this section entirely for domestic travel (same country uses same currency).**
+
+For international travel, call get_currency_exchange with the user's ORIGIN LOCATION and DESTINATION LOCATION (not currency codes).
 Examples:
 - Origin: "New York, USA" (or just "USA"), Destination: "Kerala, India" (or just "India")
 - Origin: "Germany", Destination: "Qatar"

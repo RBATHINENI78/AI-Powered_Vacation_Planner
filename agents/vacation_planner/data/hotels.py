@@ -218,6 +218,61 @@ HOTEL_DATABASE = {
                 "booking_url": "https://www.thesavoylondon.com/reservations/"
             }
         ]
+    },
+    "Kochi": {
+        "budget": [
+            {"name": "Zostel Kochi", "location": "Fort Kochi", "stars": 2, "rating": 4.3, "reviews": 2100, "price_per_night": 25, "amenities": ["WiFi", "AC", "Common Kitchen"], "cancellation": "Free cancellation until 24h before", "breakfast": False, "booking_url": "https://www.zostel.com/kochi"},
+            {"name": "Hotel Abad Metro", "location": "MG Road", "stars": 3, "rating": 4.1, "reviews": 3200, "price_per_night": 45, "amenities": ["WiFi", "AC", "Restaurant"], "cancellation": "Free cancellation until 24h before", "breakfast": True, "breakfast_price": 8, "booking_url": "https://www.booking.com/hotel/in/abad-metro.html"}
+        ],
+        "mid_range": [
+            {"name": "Fragrant Nature Kochi", "location": "Marine Drive", "stars": 4, "rating": 4.5, "reviews": 2800, "price_per_night": 85, "amenities": ["WiFi", "AC", "Pool", "Spa", "Restaurant"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 12, "booking_url": "https://www.fragrantnature.com/kochi"},
+            {"name": "Casino Hotel", "location": "Willingdon Island", "stars": 4, "rating": 4.4, "reviews": 3500, "price_per_night": 95, "amenities": ["WiFi", "AC", "Pool", "Restaurant", "Bar"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 15, "booking_url": "https://www.cghearth.com/casino-hotel"}
+        ],
+        "luxury": [
+            {"name": "Taj Malabar Resort & Spa", "location": "Willingdon Island", "stars": 5, "rating": 4.7, "reviews": 4200, "price_per_night": 180, "amenities": ["WiFi", "Pool", "Spa", "Multiple Restaurants", "Butler", "Waterfront"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 25, "booking_url": "https://www.tajhotels.com/malabar"},
+            {"name": "Brunton Boatyard", "location": "Fort Kochi", "stars": 5, "rating": 4.8, "reviews": 3100, "price_per_night": 200, "amenities": ["WiFi", "Pool", "Heritage Property", "Restaurant", "Waterfront"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 20, "booking_url": "https://www.cghearth.com/brunton-boatyard"}
+        ]
+    },
+    "Dubai": {
+        "budget": [
+            {"name": "Rove Downtown", "location": "Downtown Dubai", "stars": 3, "rating": 4.4, "reviews": 8500, "price_per_night": 80, "amenities": ["WiFi", "AC", "Pool", "Gym"], "cancellation": "Free cancellation until 24h before", "breakfast": False, "booking_url": "https://www.rovehotels.com/downtown"},
+            {"name": "Premier Inn Dubai", "location": "Al Jaddaf", "stars": 3, "rating": 4.2, "reviews": 6200, "price_per_night": 65, "amenities": ["WiFi", "AC", "Restaurant"], "cancellation": "Free cancellation until 24h before", "breakfast": True, "breakfast_price": 15, "booking_url": "https://www.premierinn.com/dubai"}
+        ],
+        "mid_range": [
+            {"name": "Hilton Dubai Creek", "location": "Deira", "stars": 4, "rating": 4.5, "reviews": 5800, "price_per_night": 120, "amenities": ["WiFi", "AC", "Pool", "Spa", "Restaurant"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 25, "booking_url": "https://www.hilton.com/dubai-creek"},
+            {"name": "Sofitel Dubai Downtown", "location": "Downtown Dubai", "stars": 5, "rating": 4.6, "reviews": 4200, "price_per_night": 180, "amenities": ["WiFi", "Pool", "Spa", "Multiple Restaurants"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 35, "booking_url": "https://www.sofitel.com/dubai-downtown"}
+        ],
+        "luxury": [
+            {"name": "Burj Al Arab", "location": "Jumeirah", "stars": 5, "rating": 4.9, "reviews": 3200, "price_per_night": 1500, "amenities": ["WiFi", "Private Beach", "Pool", "Spa", "Butler", "Helipad"], "cancellation": "Free cancellation until 14 days before", "breakfast": True, "breakfast_price": 100, "booking_url": "https://www.jumeirah.com/burj-al-arab"},
+            {"name": "Atlantis The Palm", "location": "Palm Jumeirah", "stars": 5, "rating": 4.7, "reviews": 12000, "price_per_night": 450, "amenities": ["WiFi", "Waterpark", "Aquarium", "Multiple Restaurants", "Beach"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 65, "booking_url": "https://www.atlantis.com/dubai"}
+        ]
+    },
+    "Doha": {
+        "budget": [
+            {"name": "Premier Inn Doha", "location": "Old Airport", "stars": 3, "rating": 4.1, "reviews": 3200, "price_per_night": 60, "amenities": ["WiFi", "AC", "Restaurant"], "cancellation": "Free cancellation until 24h before", "breakfast": True, "breakfast_price": 12, "booking_url": "https://www.premierinn.com/doha"}
+        ],
+        "mid_range": [
+            {"name": "Oryx Rotana", "location": "West Bay", "stars": 4, "rating": 4.4, "reviews": 4500, "price_per_night": 100, "amenities": ["WiFi", "AC", "Pool", "Spa", "Restaurant"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 20, "booking_url": "https://www.rotana.com/oryx-doha"},
+            {"name": "Hilton Doha", "location": "West Bay", "stars": 5, "rating": 4.5, "reviews": 5100, "price_per_night": 150, "amenities": ["WiFi", "Pool", "Spa", "Beach", "Restaurant"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 30, "booking_url": "https://www.hilton.com/doha"}
+        ],
+        "luxury": [
+            {"name": "St. Regis Doha", "location": "West Bay", "stars": 5, "rating": 4.8, "reviews": 2800, "price_per_night": 350, "amenities": ["WiFi", "Pool", "Spa", "Beach", "Butler", "Multiple Restaurants"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 50, "booking_url": "https://www.marriott.com/st-regis-doha"},
+            {"name": "Mandarin Oriental Doha", "location": "Msheireb Downtown", "stars": 5, "rating": 4.9, "reviews": 1800, "price_per_night": 400, "amenities": ["WiFi", "Pool", "Spa", "Fine Dining", "Butler"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 55, "booking_url": "https://www.mandarinoriental.com/doha"}
+        ]
+    },
+    "Salt Lake City": {
+        "budget": [
+            {"name": "Motel 6 Downtown", "location": "Downtown SLC", "stars": 2, "rating": 3.8, "reviews": 2100, "price_per_night": 55, "amenities": ["WiFi", "AC", "Parking"], "cancellation": "Free cancellation until 24h before", "breakfast": False, "booking_url": "https://www.motel6.com/slc"},
+            {"name": "Comfort Inn Downtown", "location": "Downtown", "stars": 3, "rating": 4.1, "reviews": 3400, "price_per_night": 85, "amenities": ["WiFi", "AC", "Pool", "Fitness"], "cancellation": "Free cancellation until 24h before", "breakfast": True, "breakfast_price": 0, "booking_url": "https://www.choicehotels.com/comfort-inn-slc"}
+        ],
+        "mid_range": [
+            {"name": "Hilton Salt Lake City Center", "location": "Downtown", "stars": 4, "rating": 4.4, "reviews": 4800, "price_per_night": 140, "amenities": ["WiFi", "AC", "Pool", "Restaurant", "Fitness"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 18, "booking_url": "https://www.hilton.com/salt-lake-city"},
+            {"name": "Little America Hotel", "location": "Downtown", "stars": 4, "rating": 4.5, "reviews": 5200, "price_per_night": 160, "amenities": ["WiFi", "Pool", "Spa", "Restaurant", "Gardens"], "cancellation": "Free cancellation until 48h before", "breakfast": True, "breakfast_price": 20, "booking_url": "https://www.littleamerica.com/salt-lake-city"}
+        ],
+        "luxury": [
+            {"name": "Grand America Hotel", "location": "Downtown", "stars": 5, "rating": 4.8, "reviews": 3600, "price_per_night": 280, "amenities": ["WiFi", "Pool", "Spa", "Fine Dining", "Concierge"], "cancellation": "Free cancellation until 7 days before", "breakfast": True, "breakfast_price": 35, "booking_url": "https://www.grandamerica.com"},
+            {"name": "Montage Deer Valley", "location": "Park City", "stars": 5, "rating": 4.9, "reviews": 2100, "price_per_night": 650, "amenities": ["WiFi", "Ski-in/Ski-out", "Pool", "Spa", "Multiple Restaurants"], "cancellation": "Free cancellation until 14 days before", "breakfast": True, "breakfast_price": 45, "booking_url": "https://www.montagehotels.com/deervalley"}
+        ]
     }
 }
 

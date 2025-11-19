@@ -30,9 +30,27 @@ async def search_flights_amadeus(
     """
     client = AmadeusClient()
 
-    # Get airport codes
-    origin_code = await client.get_airport_code(origin)
-    dest_code = await client.get_airport_code(destination)
+    # Get airport codes dynamically from Amadeus API
+    origin_info = await client.get_airport_code(origin)
+    dest_info = await client.get_airport_code(destination)
+
+    # Check if airport codes were found
+    if not origin_info.get("code"):
+        return {
+            "error": f"Could not find airport for origin: {origin}",
+            "details": origin_info.get("error", "Unknown error"),
+            "suggestion": "Please specify a major city or airport name"
+        }
+
+    if not dest_info.get("code"):
+        return {
+            "error": f"Could not find airport for destination: {destination}",
+            "details": dest_info.get("error", "Unknown error"),
+            "suggestion": "Please specify a major city or airport name"
+        }
+
+    origin_code = origin_info["code"]
+    dest_code = dest_info["code"]
 
     # Search flights
     result = await client.search_flights(
@@ -47,10 +65,20 @@ async def search_flights_amadeus(
     if "error" in result:
         return result
 
+    # Add airport info to result
+    result["origin_airport"] = origin_info
+    result["destination_airport"] = dest_info
+
     # Parse and categorize results
     flights = result.get("data", [])
     if not flights:
-        return {"error": "No flights found", "route": f"{origin_code}-{dest_code}"}
+        return {
+            "error": f"No flights found in Amadeus test environment for route {origin_code}-{dest_code}",
+            "route": f"{origin_code}-{dest_code}",
+            "origin_airport": origin_info,
+            "destination_airport": dest_info,
+            "note": "The Amadeus test API has limited sample data. Try routes like JFK-CDG, JFK-NRT, JFK-LHR for test data, or use production API for real data."
+        }
 
     # Sort by price
     flights.sort(key=lambda x: float(x["price"]["total"]))
@@ -143,6 +171,23 @@ def search_flights_amadeus_sync(
     travelers: int = 2
 ) -> Dict[str, Any]:
     """Synchronous version of search_flights_amadeus"""
-    return asyncio.run(search_flights_amadeus(
-        origin, destination, departure_date, return_date, travelers
-    ))
+    import nest_asyncio
+    nest_asyncio.apply()
+
+    try:
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            # If already in an event loop, create a new task
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor() as executor:
+                future = executor.submit(
+                    asyncio.run,
+                    search_flights_amadeus(origin, destination, departure_date, return_date, travelers)
+                )
+                return future.result(timeout=30)
+        else:
+            return asyncio.run(search_flights_amadeus(
+                origin, destination, departure_date, return_date, travelers
+            ))
+    except Exception as e:
+        return {"error": str(e)}
