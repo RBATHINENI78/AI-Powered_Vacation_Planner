@@ -1,15 +1,10 @@
 """
 Data modules for vacation planner
+
+Note: Static data files have been removed as part of the migration to dynamic APIs and LLM-powered features.
+All vacation planning data is now fetched from:
+- Real-time APIs (Amadeus, OpenWeather, RestCountries, ExchangeRate)
+- LLM knowledge for fallback information
 """
 
-from .flights import FLIGHT_DATABASE, search_flights_data
-from .hotels import HOTEL_DATABASE, search_hotels_data
-from .activities import ACTIVITY_DATABASE
-
-__all__ = [
-    'FLIGHT_DATABASE',
-    'HOTEL_DATABASE',
-    'ACTIVITY_DATABASE',
-    'search_flights_data',
-    'search_hotels_data'
-]
+__all__ = []

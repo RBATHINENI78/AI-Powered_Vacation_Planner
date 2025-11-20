@@ -377,21 +377,51 @@ def search_hotels(destination: str, check_in: str, check_out: str, guests: int =
             print(f"Traceback: {traceback.format_exc()}")
             # Fall back to mock data
 
-    # Fall back to mock data
+    # Fall back to LLM-powered hotel information
     try:
         d1 = datetime.strptime(check_in, "%Y-%m-%d")
         d2 = datetime.strptime(check_out, "%Y-%m-%d")
         nights = (d2 - d1).days
     except:
         nights = 7
-    result = search_hotels_data(destination, nights, guests, rooms)
-    if "error" in result:
-        # Return more helpful error with API status
-        result["api_status"] = "Amadeus API credentials configured" if USE_REAL_API else "Using mock data (no Amadeus credentials)"
-        return result
-    result["check_in"] = check_in
-    result["check_out"] = check_out
-    return result
+
+    # Return LLM instruction for hotel recommendations
+    return {
+        "destination": destination,
+        "check_in": check_in,
+        "check_out": check_out,
+        "nights": nights,
+        "guests": guests,
+        "rooms": rooms,
+        "source": "llm_fallback",
+        "instruction": f"""Since real-time hotel data is not available, provide REALISTIC hotel recommendations for {destination} based on your knowledge:
+
+**REQUIRED: Provide 3-4 hotel options in each category (Budget, Mid-Range, Luxury):**
+
+**Budget Hotels (under $100/night):**
+For each hotel include:
+- Hotel name (real chain or typical name for the area)
+- Location/neighborhood in {destination}
+- Star rating (2-3 stars)
+- Typical price per night
+- Total for {nights} nights, {rooms} room(s)
+- Amenities
+- Cancellation policy
+- How to book (Booking.com, Hotels.com, direct, etc.)
+
+**Mid-Range Hotels ($100-250/night):**
+[Same format as above, 3-4 stars]
+
+**Luxury Hotels (over $250/night):**
+[Same format as above, 4-5 stars]
+
+**IMPORTANT:**
+- Use REAL hotel names or chains that actually operate in {destination}
+- Provide accurate typical pricing based on your knowledge of {destination}
+- Include realistic amenities common in each category
+- Check-in: {check_in}, Check-out: {check_out}, {nights} nights
+"""
+    }
 
 
 def generate_detailed_itinerary(destination: str, start_date: str, end_date: str, interests: str, travelers: int = 2) -> dict:
