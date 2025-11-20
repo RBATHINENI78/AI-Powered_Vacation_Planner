@@ -1,36 +1,46 @@
 """
 Booking Agents - Flight, Hotel, and Car Rental Agents
 Designed for parallel execution in booking phase
+Uses LLM knowledge for flights and Amadeus API for hotels
 """
 
+import os
+import sys
 from typing import Dict, Any, List
 from datetime import datetime, timedelta
 import random
 from loguru import logger
 from .base_agent import BaseAgent
 
+# Import MCP servers for real API calls
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from mcp_servers.amadeus_hotels import search_hotels_amadeus_sync
+
+# Flag to use real API or mock data
+USE_REAL_API = os.getenv("AMADEUS_CLIENT_ID") and os.getenv("AMADEUS_CLIENT_ID") != "your_amadeus_client_id"
+
 
 class FlightBookingAgent(BaseAgent):
     """
-    Flight Booking Agent for searching and comparing flights.
+    Flight Booking Agent using LLM knowledge for flight information.
     Designed for parallel execution with other booking agents.
     """
 
     def __init__(self):
         super().__init__(
             name="flight_booking",
-            description="Searches and compares flight options"
+            description="Provides flight information using LLM knowledge"
         )
 
     async def _execute_impl(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Search for flight options.
+        Provide flight information using LLM knowledge.
 
         Args:
             input_data: Contains origin, destination, dates, travelers
 
         Returns:
-            List of flight options
+            Structured data for LLM to generate flight information
         """
         origin = input_data.get("origin", "")
         destination = input_data.get("destination", "")
@@ -39,16 +49,10 @@ class FlightBookingAgent(BaseAgent):
         travelers = input_data.get("travelers", 1)
         cabin_class = input_data.get("cabin_class", "economy")
 
-        # Simulate flight search results
-        flights = self._search_flights(
+        # Get LLM-powered flight information
+        flight_info = self._search_flights_llm(
             origin, destination, departure_date, return_date, travelers, cabin_class
         )
-
-        # Sort by price
-        flights.sort(key=lambda x: x["total_price"])
-
-        # Get recommendation
-        recommendation = self._get_recommendation(flights, input_data.get("priority", "price"))
 
         return {
             "status": "success",
@@ -60,75 +64,60 @@ class FlightBookingAgent(BaseAgent):
                 "travelers": travelers,
                 "class": cabin_class
             },
-            "results_count": len(flights),
-            "flights": flights,
-            "recommended": recommendation,
+            "flight_info": flight_info,
             "booking_tips": self._get_booking_tips()
         }
 
-    def _search_flights(
+    def _search_flights_llm(
         self,
         origin: str,
         destination: str,
-        departure: str,
+        departure_date: str,
         return_date: str,
         travelers: int,
-        cabin: str
-    ) -> List[Dict[str, Any]]:
-        """Simulate flight search results."""
-        airlines = [
-            ("Delta", "DL"), ("United", "UA"), ("American", "AA"),
-            ("Air France", "AF"), ("British Airways", "BA"), ("Lufthansa", "LH")
-        ]
+        cabin_class: str = "economy"
+    ) -> Dict[str, Any]:
+        """
+        Provide LLM-powered flight information.
 
-        cabin_multipliers = {"economy": 1.0, "premium_economy": 1.5, "business": 3.0, "first": 5.0}
-        base_price = random.randint(400, 800)
-
-        flights = []
-        for airline, code in random.sample(airlines, min(4, len(airlines))):
-            price_variation = random.uniform(0.85, 1.15)
-            base = base_price * price_variation * cabin_multipliers.get(cabin, 1.0)
-
-            flight = {
-                "airline": airline,
-                "flight_number": f"{code}{random.randint(100, 999)}",
-                "outbound": {
-                    "departure": f"{departure} {random.randint(6, 20):02d}:00",
-                    "arrival": f"{departure} {random.randint(10, 23):02d}:00",
-                    "duration": f"{random.randint(6, 14)}h {random.randint(0, 59)}m",
-                    "stops": random.choice([0, 0, 1, 1, 2])
-                },
-                "return": {
-                    "departure": f"{return_date} {random.randint(6, 20):02d}:00",
-                    "arrival": f"{return_date} {random.randint(10, 23):02d}:00",
-                    "duration": f"{random.randint(6, 14)}h {random.randint(0, 59)}m",
-                    "stops": random.choice([0, 0, 1, 1, 2])
-                },
-                "price_per_person": round(base, 2),
-                "total_price": round(base * travelers, 2),
-                "cabin_class": cabin,
-                "baggage": "1 carry-on, 1 checked" if cabin != "economy" else "1 carry-on",
-                "refundable": random.choice([True, False])
-            }
-            flights.append(flight)
-
-        return flights
-
-    def _get_recommendation(self, flights: List[Dict], priority: str) -> Dict[str, Any]:
-        """Get recommended flight based on priority."""
-        if not flights:
-            return {"message": "No flights found"}
-
-        if priority == "duration":
-            # Sort by total stops (fewer is better)
-            flights.sort(key=lambda x: x["outbound"]["stops"] + x["return"]["stops"])
-
-        # Default to cheapest (already sorted by price)
-        recommended = flights[0]
-
+        Returns structured data for LLM to generate typical flight details.
+        """
         return {
-            "flight": recommended,
-            "reason": f"Best {priority} option" if priority else "Lowest price"
+            "origin": origin,
+            "destination": destination,
+            "departure_date": departure_date,
+            "return_date": return_date,
+            "travelers": travelers,
+            "cabin_class": cabin_class,
+            "instruction_for_llm": f"""Using your knowledge of airlines, routes, and airports, provide SPECIFIC flight information for {origin} to {destination}:
+
+**REQUIRED FORMAT - Provide 3-5 specific flight options like this:**
+
+**Flight Option 1: [Specific Airline Name]**
+- Route: [Origin Airport Code-Airport Name] → [Destination Airport Code-Airport Name]
+- Flight Type: Direct / 1 stop via [Hub City] / 2 stops
+- Typical Duration: X hours XX minutes
+- Approximate Price: $XXX-$XXX per person ({cabin_class} class, round-trip)
+- Common Departure Times: Morning (6am-12pm) / Afternoon (12pm-6pm) / Evening (6pm-12am)
+- Aircraft Type: [Common aircraft on this route]
+- Baggage: [Typical baggage allowance]
+
+**Flight Option 2:** [Continue with different airline...]
+
+**IMPORTANT:**
+- Use REAL airline names that actually operate this route
+- Use correct IATA airport codes (e.g., JFK for New York, LAX for Los Angeles)
+- Be specific about typical hub cities for connections
+- Provide realistic price ranges based on route distance and typical fares for {cabin_class} class
+- Include both direct flights AND connection options if applicable
+- Mention if certain airlines have better schedules or pricing for this route
+- Consider {travelers} travelers in pricing
+- Reference departure date: {departure_date} and return date: {return_date}
+
+**Booking Recommendation:**
+Include a note: "For real-time pricing and availability, check airline websites or Google Flights, Kayak, or Skyscanner."
+
+Do NOT say "I cannot provide" or "due to limitations" - use your knowledge to provide helpful, accurate typical flight information."""
         }
 
     def _get_booking_tips(self) -> List[str]:
@@ -143,47 +132,65 @@ class FlightBookingAgent(BaseAgent):
 
 class HotelBookingAgent(BaseAgent):
     """
-    Hotel Booking Agent for searching and comparing accommodations.
+    Hotel Booking Agent using Amadeus API for real hotel data.
     Designed for parallel execution with other booking agents.
     """
 
     def __init__(self):
         super().__init__(
             name="hotel_booking",
-            description="Searches and compares hotel options"
+            description="Searches hotels using Amadeus API"
         )
 
     async def _execute_impl(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Search for hotel options.
+        Search for hotel options using Amadeus API.
 
         Args:
             input_data: Contains destination, dates, guests, preferences
 
         Returns:
-            List of hotel options
+            List of hotel options from Amadeus API or fallback data
         """
         destination = input_data.get("destination", "")
         check_in = input_data.get("check_in", "")
         check_out = input_data.get("check_out", "")
         guests = input_data.get("guests", 2)
         rooms = input_data.get("rooms", 1)
-        budget_per_night = input_data.get("budget_per_night", 200)
-        star_rating = input_data.get("star_rating", 3)
 
-        # Simulate hotel search
-        hotels = self._search_hotels(
-            destination, check_in, check_out, guests, rooms, budget_per_night, star_rating
-        )
+        # Try real Amadeus API first if credentials are available
+        if USE_REAL_API:
+            try:
+                logger.info(f"Calling Amadeus hotel API: {destination}, {check_in} to {check_out}, {guests} guests, {rooms} rooms")
+                result = search_hotels_amadeus_sync(destination, check_in, check_out, guests, rooms)
+                logger.info(f"Amadeus hotel API response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}")
+                if "error" not in result:
+                    logger.info(f"Amadeus hotel API success!")
+                    return {
+                        "status": "success",
+                        "source": "amadeus_api",
+                        "search_params": {
+                            "destination": destination,
+                            "check_in": check_in,
+                            "check_out": check_out,
+                            "guests": guests,
+                            "rooms": rooms
+                        },
+                        "hotels": result.get("hotels", {}),
+                        "booking_tips": self._get_booking_tips()
+                    }
+                else:
+                    logger.error(f"Amadeus hotel API error: {result}")
+            except Exception as e:
+                logger.error(f"Amadeus hotel API exception: {str(e)}")
 
-        # Sort by rating
-        hotels.sort(key=lambda x: x["rating"], reverse=True)
-
-        # Get recommendation
-        recommendation = self._get_recommendation(hotels, input_data.get("priority", "rating"))
+        # Fall back to LLM-powered hotel information
+        logger.info("Using LLM-powered hotel information (Amadeus API not available)")
+        hotel_info = self._get_hotels_llm(destination, check_in, check_out, guests, rooms)
 
         return {
             "status": "success",
+            "source": "llm_knowledge",
             "search_params": {
                 "destination": destination,
                 "check_in": check_in,
@@ -191,33 +198,23 @@ class HotelBookingAgent(BaseAgent):
                 "guests": guests,
                 "rooms": rooms
             },
-            "results_count": len(hotels),
-            "hotels": hotels,
-            "recommended": recommendation,
+            "hotel_info": hotel_info,
             "booking_tips": self._get_booking_tips()
         }
 
-    def _search_hotels(
+    def _get_hotels_llm(
         self,
         destination: str,
         check_in: str,
         check_out: str,
         guests: int,
-        rooms: int,
-        budget: float,
-        stars: int
-    ) -> List[Dict[str, Any]]:
-        """Simulate hotel search results."""
-        hotel_types = [
-            ("Grand Hotel", 5, 1.5),
-            ("City Center Inn", 4, 1.0),
-            ("Comfort Suites", 3, 0.7),
-            ("Budget Lodge", 2, 0.4),
-            ("Boutique Hotel", 4, 1.2),
-            ("Business Hotel", 4, 0.9)
-        ]
+        rooms: int
+    ) -> Dict[str, Any]:
+        """
+        Provide LLM-powered hotel information as fallback.
 
-        # Calculate nights
+        Returns structured data for LLM to generate hotel recommendations.
+        """
         try:
             d1 = datetime.strptime(check_in, "%Y-%m-%d")
             d2 = datetime.strptime(check_out, "%Y-%m-%d")
@@ -225,57 +222,47 @@ class HotelBookingAgent(BaseAgent):
         except (ValueError, TypeError):
             nights = 7
 
-        hotels = []
-        for name, star, price_mult in hotel_types:
-            if star >= stars - 1:  # Include hotels within 1 star of preference
-                base_price = budget * price_mult * random.uniform(0.8, 1.2)
-                total = base_price * nights * rooms
-
-                hotel = {
-                    "name": f"{name} {destination.split(',')[0]}",
-                    "stars": star,
-                    "rating": round(random.uniform(3.5, 4.9), 1),
-                    "reviews_count": random.randint(100, 2000),
-                    "location": f"City Center, {destination}",
-                    "price_per_night": round(base_price, 2),
-                    "total_price": round(total, 2),
-                    "nights": nights,
-                    "rooms": rooms,
-                    "amenities": self._get_amenities(star),
-                    "cancellation": "Free cancellation" if random.random() > 0.3 else "Non-refundable",
-                    "breakfast": random.choice([True, False])
-                }
-                hotels.append(hotel)
-
-        return hotels
-
-    def _get_amenities(self, stars: int) -> List[str]:
-        """Get amenities based on star rating."""
-        base = ["WiFi", "Air Conditioning"]
-
-        if stars >= 3:
-            base.extend(["Room Service", "Fitness Center"])
-        if stars >= 4:
-            base.extend(["Pool", "Restaurant", "Concierge"])
-        if stars >= 5:
-            base.extend(["Spa", "Valet Parking", "Business Center"])
-
-        return base
-
-    def _get_recommendation(self, hotels: List[Dict], priority: str) -> Dict[str, Any]:
-        """Get recommended hotel based on priority."""
-        if not hotels:
-            return {"message": "No hotels found"}
-
-        if priority == "price":
-            hotels.sort(key=lambda x: x["price_per_night"])
-        elif priority == "stars":
-            hotels.sort(key=lambda x: x["stars"], reverse=True)
-        # Default is rating (already sorted)
-
         return {
-            "hotel": hotels[0],
-            "reason": f"Best {priority} option" if priority else "Highest rated"
+            "destination": destination,
+            "check_in": check_in,
+            "check_out": check_out,
+            "nights": nights,
+            "guests": guests,
+            "rooms": rooms,
+            "instruction_for_llm": f"""Since real-time hotel data is not available, provide REALISTIC hotel recommendations for {destination} based on your knowledge:
+
+**REQUIRED: Provide 3-4 hotel options in each category (Budget, Mid-Range, Luxury):**
+
+**Budget Hotels (under $100/night):**
+For each hotel include:
+- Hotel name (real chain or typical name for the area)
+- Location/neighborhood in {destination}
+- Star rating (2-3 stars)
+- Typical price per night
+- Total for {nights} nights, {rooms} room(s)
+- Amenities
+- Cancellation policy
+- How to book (Booking.com, Hotels.com, direct, etc.)
+
+**Mid-Range Hotels ($100-250/night):**
+[Same format as above, 3-4 stars]
+
+**Luxury Hotels (over $250/night):**
+[Same format as above, 4-5 stars]
+
+**IMPORTANT:**
+- Use REAL hotel names or chains that actually operate in {destination}
+- Provide realistic prices based on {destination}'s typical hotel costs
+- Include specific neighborhoods/areas in {destination}
+- Consider dates: {check_in} to {check_out}
+- Calculate total cost for {nights} nights and {rooms} room(s)
+- Include typical amenities for each category
+- Provide practical booking recommendations
+
+**Note to user:**
+"These are typical hotel options for {destination}. For real-time availability and booking, please check Booking.com, Hotels.com, Expedia, or the hotel's direct website."
+
+Do NOT say "I cannot provide" - use your knowledge of typical hotels in {destination}."""
         }
 
     def _get_booking_tips(self) -> List[str]:

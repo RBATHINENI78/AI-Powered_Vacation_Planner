@@ -19,9 +19,7 @@ load_dotenv()
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 EXCHANGERATE_API_KEY = os.getenv("EXCHANGERATE_API_KEY")
 
-# Import data modules
-from .data.hotels import search_hotels_data
-from .data.activities import ACTIVITY_DATABASE
+# Static data imports removed - now using dynamic APIs and LLM knowledge
 
 # Import MCP servers for real API calls
 import sys
@@ -398,7 +396,7 @@ def search_hotels(destination: str, check_in: str, check_out: str, guests: int =
 
 def generate_detailed_itinerary(destination: str, start_date: str, end_date: str, interests: str, travelers: int = 2) -> dict:
     """
-    Generate a detailed day-by-day itinerary with specific times.
+    Generate a detailed day-by-day itinerary using LLM knowledge.
 
     Args:
         destination: City name (e.g., "Paris")
@@ -408,91 +406,14 @@ def generate_detailed_itinerary(destination: str, start_date: str, end_date: str
         travelers: Number of travelers
 
     Returns:
-        Complete day-by-day itinerary with times, activities, and booking links
+        Structured data for LLM to generate detailed itinerary
     """
-    city = destination.split(",")[0].strip()
-    if city not in ACTIVITY_DATABASE:
-        try:
-            start = datetime.strptime(start_date, "%Y-%m-%d")
-            end = datetime.strptime(end_date, "%Y-%m-%d")
-            num_days = (end - start).days + 1
-        except:
-            num_days = 7
-        return {
-            "limitation": f"Detailed timed itinerary data not available for {city}",
-            "destination": destination,
-            "start_date": start_date,
-            "end_date": end_date,
-            "total_days": num_days,
-            "travelers": travelers,
-            "interests": interests,
-            "recommendation": "Please generate a conceptual itinerary based on the destination and interests provided"
-        }
-
     try:
         start = datetime.strptime(start_date, "%Y-%m-%d")
         end = datetime.strptime(end_date, "%Y-%m-%d")
         num_days = (end - start).days + 1
     except:
-        return {"error": "Invalid date format"}
-
-    interest_list = [i.strip().lower() for i in interests.split(",")]
-    city_activities = ACTIVITY_DATABASE[city]
-
-    available = []
-    for interest in interest_list:
-        for category, activities in city_activities.items():
-            if interest in category.lower() or category.lower() in interest:
-                for act in activities:
-                    act_copy = act.copy()
-                    act_copy["category"] = category
-                    available.append(act_copy)
-
-    available.sort(key=lambda x: x["rating"], reverse=True)
-
-    itinerary = []
-    idx = 0
-
-    for day_num in range(num_days):
-        current_date = start + timedelta(days=day_num)
-        day = {"day": day_num + 1, "date": current_date.strftime("%Y-%m-%d"), "day_name": current_date.strftime("%A"), "activities": []}
-
-        if idx < len(available):
-            act = available[idx]
-            end_time = 9 + act["duration_hours"]
-            day["activities"].append({
-                "time_start": "09:00",
-                "time_end": f"{int(end_time):02d}:{int((end_time % 1) * 60):02d}",
-                "name": act["name"],
-                "cost_per_person": act["cost"],
-                "total_cost": act["cost"] * travelers,
-                "booking_url": act.get("booking_url"),
-                "address": act.get("address", ""),
-                "tips": act.get("tips", "")
-            })
-            idx += 1
-
-        day["activities"].append({"time_start": "12:30", "time_end": "14:00", "name": "Lunch", "type": "meal"})
-
-        if idx < len(available):
-            act = available[idx]
-            end_time = 14 + act["duration_hours"]
-            day["activities"].append({
-                "time_start": "14:00",
-                "time_end": f"{int(end_time):02d}:{int((end_time % 1) * 60):02d}",
-                "name": act["name"],
-                "cost_per_person": act["cost"],
-                "total_cost": act["cost"] * travelers,
-                "booking_url": act.get("booking_url"),
-                "address": act.get("address", ""),
-                "tips": act.get("tips", "")
-            })
-            idx += 1
-
-        day["activities"].append({"time_start": "19:00", "time_end": "21:00", "name": "Dinner", "type": "meal"})
-        itinerary.append(day)
-
-    total_cost = sum(act.get("total_cost", 0) for d in itinerary for act in d["activities"] if "total_cost" in act)
+        return {"error": "Invalid date format. Please use YYYY-MM-DD"}
 
     return {
         "destination": destination,
@@ -500,8 +421,56 @@ def generate_detailed_itinerary(destination: str, start_date: str, end_date: str
         "end_date": end_date,
         "total_days": num_days,
         "travelers": travelers,
-        "itinerary": itinerary,
-        "total_activity_cost": total_cost
+        "interests": interests,
+        "instruction_for_llm": f"""Create a DETAILED day-by-day itinerary for {destination} from {start_date} to {end_date} ({num_days} days).
+
+**Trip Details:**
+- Destination: {destination}
+- Dates: {start_date} to {end_date} ({num_days} days)
+- Travelers: {travelers}
+- Interests: {interests}
+
+**REQUIRED FORMAT - For each day provide:**
+
+**Day 1 ({start_date}) - [Theme based on interests]**
+
+Morning (9:00 AM - 12:00 PM):
+- Activity: [Specific attraction/location name]
+- Location: [Exact address or area]
+- Duration: [X hours]
+- Estimated Cost: $XX per person
+- Why: [Brief explanation matching interests: {interests}]
+- Tips: [Practical tips like "arrive early", "buy tickets online", etc.]
+
+Lunch (12:00 PM - 2:00 PM):
+- Restaurant/Area: [Specific recommendation]
+- Cuisine: [Type]
+- Budget: [$ / $$ / $$$]
+
+Afternoon (2:00 PM - 6:00 PM):
+- Activity: [Specific attraction/location name]
+- [Same details as morning]
+
+Evening (6:00 PM - 9:00 PM):
+- Dinner & Activity: [Specific recommendations]
+
+**[Continue for all {num_days} days]**
+
+**IMPORTANT:**
+- Use REAL, SPECIFIC place names in {destination}
+- Match activities to interests: {interests}
+- Include realistic costs for {destination}
+- Provide practical timing and logistics
+- Include transportation between locations
+- Mix popular attractions with local experiences
+- Consider opening hours and days
+- Add insider tips for each activity
+- Calculate total estimated activity cost
+
+**Activity Categories to Include Based on Interests:**
+{interests.split(',') if interests else ['culture', 'food', 'sightseeing']}
+
+Be SPECIFIC with actual place names, addresses, and realistic details for {destination}."""
     }
 
 
@@ -527,9 +496,9 @@ def generate_trip_document(destination: str, start_date: str, end_date: str, tra
     except:
         nights = 7
 
-    # Get flight information (will be handled by LLM)
+    # Get flight and itinerary information (LLM-powered)
     flights = search_flights(origin, destination, start_date, end_date, travelers)
-    hotels = search_hotels_data(city, nights, travelers, 1)
+    hotels = search_hotels(city, start_date, end_date, travelers, 1)
     itin = generate_detailed_itinerary(destination, start_date, end_date, interests, travelers)
 
     doc = f"""# {city} Vacation Plan
@@ -562,35 +531,14 @@ def generate_trip_document(destination: str, start_date: str, end_date: str, tra
         doc += "*Hotel data not available for this destination. Please check Booking.com, Hotels.com, or Agoda for options.*\n\n"
 
     doc += "---\n\n## Daily Itinerary\n\n"
-    if "itinerary" in itin:
-        for day in itin["itinerary"]:
-            doc += f"### Day {day['day']} - {day['date']} ({day['day_name']})\n\n"
-            for act in day["activities"]:
-                if act.get("type") == "meal":
-                    doc += f"**{act['time_start']} - {act['time_end']}:** {act['name']}\n\n"
-                else:
-                    doc += f"**{act['time_start']} - {act['time_end']}:** {act['name']}\n"
-                    if act.get("total_cost"):
-                        doc += f"- Cost: ${act['total_cost']}\n"
-                    if act.get("booking_url"):
-                        doc += f"- [Book tickets]({act['booking_url']})\n"
-                    if act.get("tips"):
-                        doc += f"- Tip: {act['tips']}\n"
-                    doc += "\n"
-    else:
-        doc += f"*Detailed itinerary data not available. Please see conceptual itinerary based on {interests}.*\n\n"
+    doc += f"*The itinerary below should be generated based on {interests} in {destination}.*\n"
+    doc += f"*LLM will provide detailed day-by-day recommendations for {nights + 1} days.*\n\n"
 
-    # Calculate costs with fallbacks for unavailable data
-    flight_cost = 1500  # Default estimate
-    if "flights" in flights and flights["flights"].get("mid_range"):
-        flight_cost = flights["flights"]["mid_range"][0]["total_price"]
-
-    hotel_cost = nights * 100 * travelers  # Default estimate per night
-    if "hotels" in hotels and hotels["hotels"].get("mid_range"):
-        hotel_cost = hotels["hotels"]["mid_range"][0]["total_price"]
-
-    activity_cost = itin.get("total_activity_cost", nights * 50 * travelers)  # Default estimate
-    food_cost = nights * 100 * travelers
+    # Use estimated costs (LLM will provide specific breakdowns)
+    flight_cost = 1500  # Default estimate for international travel
+    hotel_cost = nights * 150 * travelers  # Default estimate per night
+    activity_cost = nights * 75 * travelers  # Default estimate for activities
+    food_cost = nights * 100 * travelers  # Default estimate for meals
     total = flight_cost + hotel_cost + activity_cost + food_cost
 
     doc += f"""---

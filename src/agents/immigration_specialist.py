@@ -16,73 +16,26 @@ class ImmigrationSpecialistAgent(BaseAgent):
     def __init__(self):
         super().__init__(
             name="immigration_specialist",
-            description="Handles visa requirements and travel documentation"
+            description="Handles visa requirements and travel documentation using LLM knowledge"
         )
 
         # Register A2A message handlers
         self.register_message_handler("weather_advisory", self._handle_weather_advisory)
-
-        # Visa requirements database
-        self.visa_database = {
-            "France": {
-                "US": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "UK": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "IN": {"required": True, "max_stay": "90 days", "type": "Schengen Visa"},
-                "CN": {"required": True, "max_stay": "90 days", "type": "Schengen Visa"}
-            },
-            "Japan": {
-                "US": {"required": False, "max_stay": "90 days", "type": "Visa-free"},
-                "UK": {"required": False, "max_stay": "90 days", "type": "Visa-free"},
-                "IN": {"required": True, "max_stay": "15-90 days", "type": "Tourist Visa"},
-                "CN": {"required": True, "max_stay": "15-30 days", "type": "Tourist Visa"}
-            },
-            "UK": {
-                "US": {"required": False, "max_stay": "6 months", "type": "ETA"},
-                "EU": {"required": False, "max_stay": "6 months", "type": "Visa-free"},
-                "IN": {"required": True, "max_stay": "6 months", "type": "Standard Visitor Visa"},
-                "CN": {"required": True, "max_stay": "6 months", "type": "Standard Visitor Visa"}
-            },
-            "Italy": {
-                "US": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "UK": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "IN": {"required": True, "max_stay": "90 days", "type": "Schengen Visa"}
-            },
-            "Thailand": {
-                "US": {"required": False, "max_stay": "30 days", "type": "Visa Exemption"},
-                "UK": {"required": False, "max_stay": "30 days", "type": "Visa Exemption"},
-                "IN": {"required": True, "max_stay": "15-60 days", "type": "Tourist Visa/VOA"}
-            },
-            "Australia": {
-                "US": {"required": True, "max_stay": "90 days", "type": "ETA (subclass 601)"},
-                "UK": {"required": True, "max_stay": "90 days", "type": "ETA (subclass 601)"},
-                "IN": {"required": True, "max_stay": "90 days", "type": "Visitor Visa"}
-            },
-            "Germany": {
-                "US": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "UK": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "IN": {"required": True, "max_stay": "90 days", "type": "Schengen Visa"}
-            },
-            "Spain": {
-                "US": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "UK": {"required": False, "max_stay": "90 days", "type": "Schengen"},
-                "IN": {"required": True, "max_stay": "90 days", "type": "Schengen Visa"}
-            }
-        }
 
         # Weather advisories received
         self.weather_advisories = []
 
     async def _execute_impl(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Check visa requirements and travel documentation.
+        Check visa requirements and travel documentation using LLM knowledge.
 
         Args:
             input_data: Contains 'citizenship', 'destination', 'duration'
 
         Returns:
-            Visa requirements and documentation checklist
+            Structured data for LLM to generate comprehensive visa information
         """
-        citizenship = input_data.get("citizenship", "US")
+        citizenship = input_data.get("citizenship", "")
         destination = input_data.get("destination", "")
         duration = input_data.get("duration_days", 7)
 
@@ -92,19 +45,24 @@ class ImmigrationSpecialistAgent(BaseAgent):
                 "error": "Destination is required"
             }
 
-        # Get visa requirements
-        visa_info = self._get_visa_requirements(citizenship, destination)
+        # Check if citizenship is provided
+        if not citizenship or citizenship.strip() == "":
+            return {
+                "status": "error",
+                "error": "citizenship_required",
+                "message": "To provide accurate visa and immigration requirements, I need to know your citizenship/nationality.",
+                "prompt_user": True
+            }
 
-        # Check if duration exceeds allowed stay
-        duration_warning = self._check_duration(visa_info, duration)
+        # Extract destination country from city, state, country format
+        dest_parts = destination.split(",")
+        if len(dest_parts) > 1:
+            dest_country = dest_parts[-1].strip()
+        else:
+            dest_country = destination.strip()
 
-        # Get required documents
-        documents = self._get_required_documents(visa_info, citizenship)
-
-        # Get application steps if visa required
-        application_steps = []
-        if visa_info.get("required"):
-            application_steps = self._get_application_steps(destination, visa_info.get("type"))
+        # Get LLM-powered visa requirements
+        visa_info = self._get_visa_requirements_llm(citizenship, destination, dest_country, duration)
 
         # Check for any weather-related restrictions
         travel_warnings = self._check_travel_warnings(destination)
@@ -124,150 +82,94 @@ class ImmigrationSpecialistAgent(BaseAgent):
             "status": "success",
             "citizenship": citizenship,
             "destination": destination,
+            "destination_country": dest_country,
             "visa_requirements": visa_info,
-            "duration_warning": duration_warning,
-            "required_documents": documents,
-            "application_steps": application_steps,
-            "travel_warnings": travel_warnings,
-            "entry_requirements": self._get_entry_requirements(destination)
+            "travel_warnings": travel_warnings
         }
 
-    def _get_visa_requirements(self, citizenship: str, destination: str) -> Dict[str, Any]:
-        """Get visa requirements for citizenship and destination."""
-        # Normalize country names
-        country_codes = {
-            "United States": "US", "USA": "US", "US": "US",
-            "United Kingdom": "UK", "Britain": "UK", "UK": "UK",
-            "India": "IN", "IN": "IN",
-            "China": "CN", "CN": "CN"
-        }
+    def _get_visa_requirements_llm(self, citizenship: str, destination: str, dest_country: str, duration_days: int) -> Dict[str, Any]:
+        """
+        Get LLM-powered visa requirements.
 
-        citizenship_code = country_codes.get(citizenship, citizenship)
-
-        # Extract destination country
-        dest_country = destination.split(",")[-1].strip() if "," in destination else destination
-
-        # Look up in database
-        country_data = self.visa_database.get(dest_country, {})
-        visa_info = country_data.get(citizenship_code, None)
-
-        if visa_info:
-            return {
-                "destination": dest_country,
-                "required": visa_info["required"],
-                "max_stay": visa_info["max_stay"],
-                "visa_type": visa_info["type"],
-                "source": "database"
-            }
-        else:
-            return {
-                "destination": dest_country,
-                "required": "Check embassy",
-                "max_stay": "Varies",
-                "visa_type": "Unknown",
-                "note": "Please verify with official embassy sources",
-                "source": "default"
-            }
-
-    def _check_duration(self, visa_info: Dict[str, Any], duration: int) -> Dict[str, Any]:
-        """Check if trip duration exceeds visa limits."""
-        max_stay = visa_info.get("max_stay", "90 days")
-
-        # Extract number from max_stay
-        try:
-            max_days = int(''.join(filter(str.isdigit, max_stay.split()[0])))
-        except (ValueError, IndexError):
-            max_days = 90
-
-        if duration > max_days:
-            return {
-                "warning": True,
-                "message": f"Trip duration ({duration} days) exceeds maximum stay ({max_days} days)",
-                "recommendation": "Consider applying for extended visa or splitting trip"
-            }
-
+        Returns structured data for LLM to generate comprehensive immigration details.
+        """
         return {
-            "warning": False,
-            "message": f"Duration ({duration} days) is within allowed stay ({max_days} days)"
+            "citizenship": citizenship,
+            "destination": destination,
+            "destination_country": dest_country,
+            "duration_days": duration_days,
+            "instruction_for_llm": f"""Based on your knowledge, provide COMPREHENSIVE visa and immigration requirements for a {citizenship} citizen traveling to {destination} for {duration_days} days. Include:
+
+**1. Visa Requirement**
+- Is visa required? (Yes/No)
+- What type of visa? (Tourist, eVisa, Visa-on-Arrival, Visa Exemption, etc.)
+- Maximum allowed stay
+- Processing time
+- Application fee
+
+**2. Application Process** (if visa required)
+- How to apply (online, embassy, VFS, etc.)
+- Where to apply
+- Processing time
+- Documents needed
+
+**3. Required Documents**
+Complete list including:
+- Passport requirements (validity, blank pages)
+- Photos specifications
+- Financial documents
+- Travel bookings
+- Other supporting documents
+
+**4. Entry Requirements**
+- Passport validity requirement
+- Blank pages needed
+- Return/onward ticket requirement
+- Proof of accommodation
+- Proof of funds
+
+**5. Travel Advisories & Restrictions**
+- Any current travel bans or restrictions affecting {citizenship} citizens
+- COVID-19 requirements (if any)
+- Health emergencies
+- Political situations
+- Safety concerns
+
+**6. Health Requirements**
+- Required vaccinations
+- Recommended vaccinations
+- Yellow fever certificate (if applicable)
+- COVID-19 testing/vaccination requirements
+
+**7. Customs Regulations**
+- Prohibited items
+- Restricted items
+- Duty-free allowances
+- Currency restrictions
+- Declaration requirements
+
+**8. Duration of Stay**
+- Maximum allowed stay for {citizenship} citizens
+- Extension options (if available)
+- Overstay penalties
+
+**9. Special Notes for {citizenship} Citizens**
+- Any bilateral agreements
+- Special requirements
+- Reciprocal arrangements
+- Visa waivers
+
+**10. Application Steps** (if visa required)
+Step-by-step process with timelines
+
+**IMPORTANT:**
+- Provide CURRENT, ACCURATE information based on your training knowledge
+- If there are travel bans or restrictions affecting {citizenship} citizens traveling to {dest_country}, CLEARLY state them
+- Be specific about requirements for {citizenship} nationals
+- Include official sources where possible (embassy websites, gov.travel sites)
+
+Format as a comprehensive, structured guide."""
         }
-
-    def _get_required_documents(self, visa_info: Dict[str, Any], citizenship: str) -> List[str]:
-        """Get list of required documents."""
-        base_documents = [
-            "Valid passport (6+ months validity)",
-            "Return/onward ticket",
-            "Proof of accommodation",
-            "Proof of sufficient funds",
-            "Travel insurance (recommended)"
-        ]
-
-        if visa_info.get("required"):
-            base_documents.extend([
-                "Completed visa application form",
-                "Passport-sized photos",
-                "Bank statements (3-6 months)",
-                "Employment letter or business documents",
-                "Invitation letter (if applicable)"
-            ])
-
-        return base_documents
-
-    def _get_application_steps(self, destination: str, visa_type: str) -> List[Dict[str, Any]]:
-        """Get visa application steps."""
-        return [
-            {
-                "step": 1,
-                "action": "Gather required documents",
-                "timeline": "2-4 weeks before application"
-            },
-            {
-                "step": 2,
-                "action": "Complete online application form",
-                "timeline": "1-2 hours"
-            },
-            {
-                "step": 3,
-                "action": "Schedule appointment at embassy/VFS",
-                "timeline": "Book 2-3 weeks in advance"
-            },
-            {
-                "step": 4,
-                "action": "Attend biometrics appointment",
-                "timeline": "30 minutes"
-            },
-            {
-                "step": 5,
-                "action": "Wait for processing",
-                "timeline": f"5-15 business days for {visa_type}"
-            },
-            {
-                "step": 6,
-                "action": "Collect passport with visa",
-                "timeline": "Pickup or courier delivery"
-            }
-        ]
-
-    def _get_entry_requirements(self, destination: str) -> List[str]:
-        """Get general entry requirements."""
-        requirements = [
-            "Valid travel documents",
-            "Completed customs declaration",
-            "Proof of onward travel"
-        ]
-
-        # Add destination-specific requirements
-        special_requirements = {
-            "Japan": ["Visit Japan Web registration", "Quarantine info (if applicable)"],
-            "Australia": ["Incoming Passenger Card", "Declare food items"],
-            "Thailand": ["TM6 arrival card", "Hotel booking confirmation"],
-            "UK": ["Electronic Travel Authorization (ETA)", "Proof of return ticket"]
-        }
-
-        dest_country = destination.split(",")[-1].strip() if "," in destination else destination
-        if dest_country in special_requirements:
-            requirements.extend(special_requirements[dest_country])
-
-        return requirements
 
     def _check_travel_warnings(self, destination: str) -> List[str]:
         """Check for travel warnings including weather advisories."""
