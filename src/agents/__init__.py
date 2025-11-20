@@ -14,6 +14,7 @@ from .sequential_agent import SequentialResearchAgent
 from .parallel_agent import ParallelBookingAgent
 from .loop_agent import LoopBudgetOptimizer
 from .orchestrator import OrchestratorAgent
+from .document_generator import DocumentGeneratorAgent
 
 __all__ = [
     'BaseAgent',
@@ -28,5 +29,6 @@ __all__ = [
     'SequentialResearchAgent',
     'ParallelBookingAgent',
     'LoopBudgetOptimizer',
-    'OrchestratorAgent'
+    'OrchestratorAgent',
+    'DocumentGeneratorAgent'
 ]

@@ -24,6 +24,10 @@ from src.agents.financial_advisor import FinancialAdvisorAgent
 from src.agents.immigration_specialist import ImmigrationSpecialistAgent
 from src.agents.booking_agents import FlightBookingAgent, HotelBookingAgent
 from src.agents.destination_intelligence import DestinationIntelligenceAgent
+from src.agents.document_generator import DocumentGeneratorAgent
+
+# Import callbacks for tool execution tracking
+from src.callbacks import with_callbacks
 
 # Initialize the orchestrator (which manages all other agents)
 orchestrator = OrchestratorAgent()
@@ -34,11 +38,13 @@ immigration_specialist = ImmigrationSpecialistAgent()
 flight_booking = FlightBookingAgent()
 hotel_booking = HotelBookingAgent()
 destination_intelligence = DestinationIntelligenceAgent()
+document_generator = DocumentGeneratorAgent()
 
 
 # ==================== Lightweight Tool Wrappers ====================
 # These delegate to the specialized agents
 
+@with_callbacks
 async def get_weather_info(city: str, country: str = "") -> dict:
     """Get weather information for a destination using DestinationIntelligence agent."""
     result = await destination_intelligence.execute({
@@ -62,6 +68,7 @@ async def get_weather_info(city: str, country: str = "") -> dict:
     return {"error": "Weather data unavailable"}
 
 
+@with_callbacks
 async def check_visa_requirements(citizenship: str, destination: str, duration_days: int = 30, origin: str = "") -> dict:
     """
     Check visa requirements using Immigration Specialist agent.
@@ -115,8 +122,9 @@ async def check_visa_requirements(citizenship: str, destination: str, duration_d
     return result.get("visa_requirements", {"error": "Visa data unavailable"})
 
 
-async def get_currency_exchange(origin: str, destination: str, amount: float = 1.0) -> dict:
-    """Get currency exchange rates using Financial Advisor agent."""
+@with_callbacks
+async def get_currency_exchange(origin: str, destination: str, amount: float = 1.0, travelers: int = 2, nights: int = 7) -> dict:
+    """Get currency exchange rates AND budget breakdown using Financial Advisor agent."""
 
     # Extract country names to check if domestic travel
     def extract_country(location: str) -> str:
@@ -137,20 +145,28 @@ async def get_currency_exchange(origin: str, destination: str, amount: float = 1
             "currency_exchange_needed": False
         }
 
-    # For international travel, get currency exchange info
+    # For international travel, get currency exchange AND budget breakdown
     result = await financial_advisor.execute({
-        "task": "currency_exchange",
         "origin": origin,
         "destination": destination,
-        "amount": amount
+        "budget": amount,
+        "travelers": travelers,
+        "nights": nights,
+        "travel_style": "moderate"
     })
 
-    # Financial advisor returns currency_info in the result
+    # Financial advisor returns currency_info AND budget_breakdown
     if result.get("status") == "success":
-        return result.get("currency_info", {})
-    return {"error": "Currency data unavailable"}
+        return {
+            "currency_info": result.get("currency_info", {}),
+            "budget_breakdown": result.get("budget_breakdown", {}),
+            "saving_tips": result.get("saving_tips", []),
+            "payment_recommendations": result.get("payment_recommendations", {})
+        }
+    return {"error": "Currency and budget data unavailable"}
 
 
+@with_callbacks
 async def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "", travelers: int = 1) -> dict:
     """Search for flights using Flight Booking agent."""
     result = await flight_booking.execute({
@@ -167,6 +183,7 @@ async def search_flights(origin: str, destination: str, departure_date: str, ret
     return result.get("flight_info", {"error": "Flight data unavailable"})
 
 
+@with_callbacks
 async def search_hotels(destination: str, check_in: str, check_out: str, guests: int = 2, rooms: int = 1) -> dict:
     """Search for hotels using Hotel Booking agent."""
     result = await hotel_booking.execute({
@@ -177,12 +194,25 @@ async def search_hotels(destination: str, check_in: str, check_out: str, guests:
         "rooms": rooms
     })
 
-    # Return the hotel_info from the result
+    # Return hotel data from the result
+    # Amadeus API returns 'hotels', LLM fallback returns 'hotel_info'
     if result.get("status") == "success":
+        # Check for Amadeus API result first (has 'hotels' key)
+        if "hotels" in result:
+            return {
+                "source": result.get("source", "amadeus_api"),
+                "destination": destination,
+                "check_in": check_in,
+                "check_out": check_out,
+                "hotels": result["hotels"],
+                "booking_tips": result.get("booking_tips", [])
+            }
+        # Fall back to hotel_info for LLM-generated data
         return result.get("hotel_info", {})
-    return result.get("hotel_info", {"error": "Hotel data unavailable"})
+    return {"error": "Hotel data unavailable"}
 
 
+@with_callbacks
 async def generate_detailed_itinerary(destination: str, start_date: str, end_date: str, interests: str, travelers: int = 2) -> dict:
     """Generate detailed day-by-day itinerary using Destination Intelligence agent."""
     # For itinerary, the DestinationIntelligence agent needs different task
@@ -206,17 +236,35 @@ async def generate_detailed_itinerary(destination: str, start_date: str, end_dat
     }
 
 
-async def generate_trip_document(destination: str, start_date: str, end_date: str, travelers: int, origin: str = "", interests: str = "", budget: float = 0.0) -> dict:
-    """Generate complete trip planning document using Orchestrator."""
-    result = await orchestrator.plan_vacation(
-        f"Plan a trip from {origin} to {destination} from {start_date} to {end_date} for {travelers} travelers "
-        f"with interests in {interests} and budget ${budget}"
-    )
-    return {
-        "document": result.get("plan", {}).get("itinerary", ""),
-        "format": "markdown",
-        "filename": f"{destination.lower().replace(' ', '_')}_trip_{start_date}.md"
-    }
+@with_callbacks
+async def generate_trip_document(
+    destination: str,
+    start_date: str,
+    end_date: str,
+    travelers: int,
+    origin: str = "",
+    interests: str = "",
+    budget: float = 0.0
+) -> dict:
+    """
+    Generate complete trip planning document using DocumentGenerator agent.
+
+    This should be called AFTER all other tools to compile the results.
+    The document generator will format all the collected trip data.
+    """
+    result = await document_generator.execute({
+        "destination": destination,
+        "origin": origin,
+        "start_date": start_date,
+        "end_date": end_date,
+        "travelers": travelers,
+        "budget": budget,
+        "interests": interests
+    })
+
+    if result.get("status") == "success":
+        return result.get("document", {})
+    return {"error": "Document generation failed"}
 
 
 # ==================== ADK Agent Definition ====================
@@ -233,6 +281,13 @@ Coordinates specialized agents to help users plan comprehensive vacations:
 - Financial Advisor: Currency exchange, budgeting
 - Booking Agents: Flights and hotels search
 - Orchestrator: Complete trip planning workflow
+
+CRITICAL BEHAVIOR INSTRUCTIONS:
+
+**BE PROACTIVE AND AUTO-COMPLETE**: When the user provides vacation details (destination, dates, budget, travelers),
+AUTOMATICALLY call ALL relevant tools and generate the COMPLETE vacation plan including detailed itinerary.
+DO NOT ask "Would you like me to proceed?" or "Should I generate the itinerary?" - JUST DO IT.
+Your job is to deliver complete, actionable vacation plans, not to ask permission at every step.
 
 IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
 
@@ -259,6 +314,45 @@ IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
    - For domestic travel, visa and currency exchange are NOT needed for the trip itself
    - For international travel (different countries), always check visa and currency
 
+6. WORKFLOW EXECUTION - MANDATORY TOOL CALLS:
+   **YOU MUST CALL THESE TOOLS - DO NOT GENERATE INFORMATION FROM YOUR KNOWLEDGE BASE**
+
+   For EVERY vacation request, you MUST call these tools in order:
+
+   a) ALWAYS call get_weather_info(city, country) - DO NOT generate weather from your knowledge
+
+   b) For international travel, ALWAYS call:
+      - check_visa_requirements(citizenship, destination, duration_days, origin)
+      - get_currency_exchange(origin, destination, amount=budget, travelers=X, nights=X)
+        This returns BOTH currency exchange rates AND complete budget breakdown
+      DO NOT use your knowledge - ALWAYS use the tools to get real-time data
+
+   c) ALWAYS call search_flights(origin, destination, departure_date, return_date, travelers)
+      DO NOT generate flight information from your knowledge
+
+   d) ALWAYS call search_hotels(destination, check_in, check_out, guests, rooms)
+      DO NOT generate hotel information from your knowledge
+
+   e) Call generate_detailed_itinerary(destination, start_date, end_date, interests, travelers)
+      and USE THE RETURNED DATA to create the day-by-day plan
+
+   f) FINALLY, call generate_trip_document(destination, start_date, end_date, travelers, origin, interests, budget)
+      - This generates the final document structure for presenting the trip plan
+      - Runs fast with no duplicate work
+
+   g) Present the COMPLETE vacation plan with ALL sections:
+      - Weather & Packing
+      - Visa Requirements (international only)
+      - Currency Exchange & Budget Breakdown (include saving tips!)
+      - Flight Options
+      - Hotel Options (with actual names and prices)
+      - Day-by-Day Itinerary
+      - Trip Summary
+
+   **CRITICAL**: You must use ACTUAL tool call results, not your training data.
+   If a tool returns data, use that exact data in your response.
+   Include the budget breakdown with estimated costs for flights, hotels, activities, food, and transportation.
+
 Always use information explicitly provided by the user. Only ask for clarification if critical information is genuinely missing.""",
     tools=[
         FunctionTool(get_weather_info),
@@ -267,7 +361,7 @@ Always use information explicitly provided by the user. Only ask for clarificati
         FunctionTool(search_flights),
         FunctionTool(search_hotels),
         FunctionTool(generate_detailed_itinerary),
-        FunctionTool(generate_trip_document),
+        FunctionTool(generate_trip_document),  # Final step - compiles all data into document
     ]
 )
 
