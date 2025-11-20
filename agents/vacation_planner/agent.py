@@ -50,7 +50,18 @@ async def get_weather_info(city: str, country: str = "") -> dict:
 
 
 async def check_visa_requirements(citizenship: str, destination: str, duration_days: int = 30) -> dict:
-    """Check visa requirements using Immigration Specialist agent."""
+    """
+    Check visa requirements using Immigration Specialist agent.
+
+    Args:
+        citizenship: Traveler's citizenship country (e.g., "India", "USA", "UK")
+                    Extract from user's prompt if mentioned (e.g., "Citizenship: India")
+        destination: Destination country (e.g., "India", "France", "Japan")
+        duration_days: Length of stay in days
+
+    IMPORTANT: Always extract citizenship from the user's prompt if provided.
+    Look for patterns like "Citizenship: [country]" or "citizen of [country]".
+    """
     result = await immigration_specialist.execute({
         "citizenship": citizenship,
         "destination": destination,
@@ -135,7 +146,26 @@ Coordinates specialized agents to help users plan comprehensive vacations:
 - Booking Agents: Flights and hotels search
 - Orchestrator: Complete trip planning workflow
 
-Provides helpful, accurate information and guides users through the vacation planning process.""",
+IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
+
+1. CITIZENSHIP EXTRACTION:
+   - Look for explicit mentions: "Citizenship: [country]", "citizen of [country]", "I am from [country]"
+   - If found, IMMEDIATELY use it when calling check_visa_requirements()
+   - DO NOT ask for confirmation if citizenship is clearly stated
+   - Example: "Citizenship: India" → use citizenship="India"
+
+2. DATES AND DURATION:
+   - Extract from patterns like "December 15-25, 2025" or "10-night vacation"
+   - Calculate duration_days from date ranges
+
+3. ORIGIN AND DESTINATION:
+   - Origin: Look for "from [city/country]" or "Origin: [location]"
+   - Destination: Look for "to [city/country]" or destination city names
+
+4. BUDGET:
+   - Extract from "$5000 total", "Budget: $X", etc.
+
+Always use information explicitly provided by the user. Only ask for clarification if critical information is genuinely missing.""",
     tools=[
         FunctionTool(get_weather_info),
         FunctionTool(check_visa_requirements),
