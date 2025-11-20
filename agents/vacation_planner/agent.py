@@ -118,7 +118,7 @@ async def generate_detailed_itinerary(destination: str, start_date: str, end_dat
     return result.get("itinerary", {"error": "Itinerary unavailable"})
 
 
-async def generate_trip_document(destination: str, start_date: str, end_date: str, travelers: int, origin: str = "", interests: str = "", budget: float = 0) -> dict:
+async def generate_trip_document(destination: str, start_date: str, end_date: str, travelers: int, origin: str = "", interests: str = "", budget: float = 0.0) -> dict:
     """Generate complete trip planning document using Orchestrator."""
     result = await orchestrator.plan_vacation(
         f"Plan a trip from {origin} to {destination} from {start_date} to {end_date} for {travelers} travelers "
