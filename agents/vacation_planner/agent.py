@@ -62,7 +62,7 @@ async def get_weather_info(city: str, country: str = "") -> dict:
     return {"error": "Weather data unavailable"}
 
 
-async def check_visa_requirements(citizenship: str, destination: str, duration_days: int = 30) -> dict:
+async def check_visa_requirements(citizenship: str, destination: str, duration_days: int = 30, origin: str = "") -> dict:
     """
     Check visa requirements using Immigration Specialist agent.
 
@@ -71,10 +71,36 @@ async def check_visa_requirements(citizenship: str, destination: str, duration_d
                     Extract from user's prompt if mentioned (e.g., "Citizenship: India")
         destination: Destination country (e.g., "India", "France", "Japan")
         duration_days: Length of stay in days
+        origin: Origin location (e.g., "Charlotte, USA") - used to detect domestic travel
 
     IMPORTANT: Always extract citizenship from the user's prompt if provided.
     Look for patterns like "Citizenship: [country]" or "citizen of [country]".
     """
+
+    # Extract country names from origin and destination to detect domestic travel
+    def extract_country(location: str) -> str:
+        """Extract country from 'City, Country' format."""
+        if not location:
+            return ""
+        parts = [p.strip() for p in location.split(",")]
+        # Return the last part as it's usually the country
+        return parts[-1] if parts else location
+
+    origin_country = extract_country(origin)
+    dest_country = extract_country(destination)
+
+    # Check if this is domestic travel (same country)
+    if origin_country and dest_country and origin_country.lower() == dest_country.lower():
+        return {
+            "travel_type": "domestic",
+            "origin_country": origin_country,
+            "destination_country": dest_country,
+            "visa_required": False,
+            "message": f"This is domestic travel within {dest_country}. No additional visa required for this trip.",
+            "note": f"Ensure you have valid documentation to be in {dest_country} (existing visa/residency if applicable)."
+        }
+
+    # For international travel, consult the immigration specialist
     result = await immigration_specialist.execute({
         "citizenship": citizenship,
         "destination": destination,
@@ -83,12 +109,35 @@ async def check_visa_requirements(citizenship: str, destination: str, duration_d
 
     # Immigration specialist returns the visa_requirements directly in the result
     if result.get("status") == "success":
-        return result.get("visa_requirements", {})
+        visa_req = result.get("visa_requirements", {})
+        visa_req["travel_type"] = "international"
+        return visa_req
     return result.get("visa_requirements", {"error": "Visa data unavailable"})
 
 
 async def get_currency_exchange(origin: str, destination: str, amount: float = 1.0) -> dict:
     """Get currency exchange rates using Financial Advisor agent."""
+
+    # Extract country names to check if domestic travel
+    def extract_country(location: str) -> str:
+        """Extract country from 'City, Country' format."""
+        if not location:
+            return ""
+        parts = [p.strip() for p in location.split(",")]
+        return parts[-1] if parts else location
+
+    origin_country = extract_country(origin)
+    dest_country = extract_country(destination)
+
+    # Skip currency exchange for domestic travel (same country)
+    if origin_country and dest_country and origin_country.lower() == dest_country.lower():
+        return {
+            "travel_type": "domestic",
+            "message": f"Domestic travel within {dest_country}. Same currency used.",
+            "currency_exchange_needed": False
+        }
+
+    # For international travel, get currency exchange info
     result = await financial_advisor.execute({
         "task": "currency_exchange",
         "origin": origin,
@@ -200,9 +249,15 @@ IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
 3. ORIGIN AND DESTINATION:
    - Origin: Look for "from [city/country]" or "Origin: [location]"
    - Destination: Look for "to [city/country]" or destination city names
+   - IMPORTANT: Pass origin to check_visa_requirements() and get_currency_exchange() to detect domestic travel
 
 4. BUDGET:
    - Extract from "$5000 total", "Budget: $X", etc.
+
+5. DOMESTIC vs INTERNATIONAL TRAVEL:
+   - If origin and destination are in the SAME country (e.g., "Charlotte, USA" to "Salt Lake City, USA"), it's DOMESTIC
+   - For domestic travel, visa and currency exchange are NOT needed for the trip itself
+   - For international travel (different countries), always check visa and currency
 
 Always use information explicitly provided by the user. Only ask for clarification if critical information is genuinely missing.""",
     tools=[
