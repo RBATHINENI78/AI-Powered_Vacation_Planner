@@ -272,13 +272,19 @@ class OrchestratorAgent(BaseAgent):
         # Extract budget
         budget_match = re.search(r"\$?([\d,]+)(?:\s*-\s*\$?([\d,]+))?", request)
         if budget_match:
-            if budget_match.group(2):
-                # Range - take average
-                low = int(budget_match.group(1).replace(",", ""))
-                high = int(budget_match.group(2).replace(",", ""))
-                parsed["budget"] = (low + high) // 2
-            else:
-                parsed["budget"] = int(budget_match.group(1).replace(",", ""))
+            try:
+                if budget_match.group(2):
+                    # Range - take average
+                    low = int(budget_match.group(1).replace(",", ""))
+                    high = int(budget_match.group(2).replace(",", ""))
+                    parsed["budget"] = (low + high) // 2
+                else:
+                    budget_str = budget_match.group(1).replace(",", "")
+                    if budget_str:  # Only parse if not empty
+                        parsed["budget"] = int(budget_str)
+            except (ValueError, AttributeError):
+                # If budget parsing fails, use default
+                parsed["budget"] = 3000
 
         # Extract interests
         interest_keywords = [
