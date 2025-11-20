@@ -42,11 +42,24 @@ destination_intelligence = DestinationIntelligenceAgent()
 async def get_weather_info(city: str, country: str = "") -> dict:
     """Get weather information for a destination using DestinationIntelligence agent."""
     result = await destination_intelligence.execute({
-        "task": "weather",
         "city": city,
         "country": country
     })
-    return result.get("weather_info", {"error": "Weather data unavailable"})
+
+    # Extract weather data from the agent response
+    if result.get("status") == "success" and "current_weather" in result:
+        weather = result["current_weather"]
+        packing = result.get("packing_list", [])
+        return {
+            "city": weather.get("location", city),
+            "country": weather.get("country", country),
+            "temperature": f"{weather.get('temperature', 'N/A')}°C",
+            "feels_like": f"{weather.get('feels_like', 'N/A')}°C",
+            "conditions": weather.get("description", "N/A"),
+            "humidity": f"{weather.get('humidity', 'N/A')}%",
+            "packing_suggestions": packing
+        }
+    return {"error": "Weather data unavailable"}
 
 
 async def check_visa_requirements(citizenship: str, destination: str, duration_days: int = 30) -> dict:
@@ -67,6 +80,10 @@ async def check_visa_requirements(citizenship: str, destination: str, duration_d
         "destination": destination,
         "duration_days": duration_days
     })
+
+    # Immigration specialist returns the visa_requirements directly in the result
+    if result.get("status") == "success":
+        return result.get("visa_requirements", {})
     return result.get("visa_requirements", {"error": "Visa data unavailable"})
 
 
@@ -78,7 +95,11 @@ async def get_currency_exchange(origin: str, destination: str, amount: float = 1
         "destination": destination,
         "amount": amount
     })
-    return result.get("currency_info", {"error": "Currency data unavailable"})
+
+    # Financial advisor returns currency_info in the result
+    if result.get("status") == "success":
+        return result.get("currency_info", {})
+    return {"error": "Currency data unavailable"}
 
 
 async def search_flights(origin: str, destination: str, departure_date: str, return_date: str = "", travelers: int = 1) -> dict:
@@ -90,7 +111,11 @@ async def search_flights(origin: str, destination: str, departure_date: str, ret
         "return_date": return_date,
         "travelers": travelers
     })
-    return result.get("flight_options", {"error": "Flight data unavailable"})
+
+    # Return the flight_info from the result
+    if result.get("status") == "success":
+        return result.get("flight_info", {})
+    return result.get("flight_info", {"error": "Flight data unavailable"})
 
 
 async def search_hotels(destination: str, check_in: str, check_out: str, guests: int = 2, rooms: int = 1) -> dict:
@@ -102,20 +127,34 @@ async def search_hotels(destination: str, check_in: str, check_out: str, guests:
         "guests": guests,
         "rooms": rooms
     })
-    return result.get("hotel_options", {"error": "Hotel data unavailable"})
+
+    # Return the hotel_info from the result
+    if result.get("status") == "success":
+        return result.get("hotel_info", {})
+    return result.get("hotel_info", {"error": "Hotel data unavailable"})
 
 
 async def generate_detailed_itinerary(destination: str, start_date: str, end_date: str, interests: str, travelers: int = 2) -> dict:
     """Generate detailed day-by-day itinerary using Destination Intelligence agent."""
-    result = await destination_intelligence.execute({
-        "task": "itinerary",
+    # For itinerary, the DestinationIntelligence agent needs different task
+    # Let's return an instruction for the LLM to generate the itinerary
+    from datetime import datetime
+    try:
+        d1 = datetime.strptime(start_date, "%Y-%m-%d")
+        d2 = datetime.strptime(end_date, "%Y-%m-%d")
+        days = (d2 - d1).days + 1
+    except:
+        days = 7
+
+    return {
         "destination": destination,
         "start_date": start_date,
         "end_date": end_date,
+        "days": days,
+        "travelers": travelers,
         "interests": interests,
-        "travelers": travelers
-    })
-    return result.get("itinerary", {"error": "Itinerary unavailable"})
+        "instruction": f"Generate a detailed {days}-day itinerary for {destination} focusing on: {interests}"
+    }
 
 
 async def generate_trip_document(destination: str, start_date: str, end_date: str, travelers: int, origin: str = "", interests: str = "", budget: float = 0.0) -> dict:
