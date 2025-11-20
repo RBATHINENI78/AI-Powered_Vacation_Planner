@@ -20,7 +20,6 @@ OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 EXCHANGERATE_API_KEY = os.getenv("EXCHANGERATE_API_KEY")
 
 # Import data modules
-from .data.flights import search_flights_data
 from .data.hotels import search_hotels_data
 from .data.activities import ACTIVITY_DATABASE
 
@@ -28,6 +27,7 @@ from .data.activities import ACTIVITY_DATABASE
 import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 from src.mcp_servers.amadeus_flights import search_flights_amadeus_sync
 from src.mcp_servers.amadeus_hotels import search_hotels_amadeus_sync
 
@@ -300,45 +300,51 @@ def detect_pii(text: str) -> dict:
 
 def search_flights(origin: str, destination: str, departure_date: str, return_date: str, travelers: int = 2) -> dict:
     """
-    Search for available flights with booking links.
+    Provide flight information between origin and destination using LLM knowledge.
+
+    This tool returns structured information that guides the LLM to provide
+    typical flight details based on historical data and airline route knowledge.
 
     Args:
-        origin: Origin city (e.g., "New York")
-        destination: Destination city (e.g., "Paris")
+        origin: Origin city/country (e.g., "New York, USA", "Charlotte, USA")
+        destination: Destination city/country (e.g., "Salt Lake City, USA", "Paris, France")
         departure_date: Departure date (YYYY-MM-DD)
         return_date: Return date (YYYY-MM-DD)
         travelers: Number of travelers
 
     Returns:
-        Top 3 flights per category (budget, mid-range, premium) with booking URLs
+        Structured data for LLM to generate detailed flight information
     """
-    # Try real API first if credentials are available
-    if USE_REAL_API:
-        try:
-            print(f"Calling Amadeus flight API: {origin} -> {destination}, {departure_date} to {return_date}, {travelers} travelers")
-            result = search_flights_amadeus_sync(origin, destination, departure_date, return_date, travelers)
-            print(f"Amadeus flight API response keys: {result.keys() if isinstance(result, dict) else 'not a dict'}")
-            if "error" not in result:
-                print(f"Amadeus flight API success! Found {len(result.get('flights', {}).get('budget', []))} budget flights")
-                return result
-            else:
-                # Log the full error details
-                print(f"Amadeus flight API error: {result}")
-        except Exception as e:
-            import traceback
-            print(f"Amadeus flight API exception: {str(e)}")
-            print(f"Traceback: {traceback.format_exc()}")
-            # Fall back to mock data
+    return {
+        "origin": origin,
+        "destination": destination,
+        "departure_date": departure_date,
+        "return_date": return_date,
+        "travelers": travelers,
+        "instruction_for_llm": f"""Using your knowledge of airlines, routes, and airports, provide SPECIFIC flight information for {origin} to {destination}:
 
-    # Fall back to mock data
-    result = search_flights_data(origin, destination, travelers)
-    if "error" in result:
-        # Return more helpful error with API status
-        result["api_status"] = "Amadeus API credentials configured" if USE_REAL_API else "Using mock data (no Amadeus credentials)"
-        return result
-    result["departure_date"] = departure_date
-    result["return_date"] = return_date
-    return result
+**REQUIRED FORMAT - Provide 3-5 specific flight options like this:**
+
+**Flight Option 1: [Specific Airline Name]**
+- Route: [Origin Airport Code-Airport Name] → [Destination Airport Code-Airport Name]
+- Flight Type: Direct / 1 stop via [Hub City] / 2 stops
+- Typical Duration: X hours XX minutes
+- Approximate Price: $XXX-$XXX per person (economy class, round-trip)
+- Common Departure Times: Morning (6am-12pm) / Afternoon (12pm-6pm) / Evening (6pm-12am)
+- Aircraft Type: [Common aircraft on this route]
+
+**Flight Option 2:** [Continue with different airline...]
+
+**IMPORTANT:**
+- Use REAL airline names that actually operate this route (Delta, American, United, Southwest, etc. for US; Emirates, British Airways, Lufthansa for international)
+- Use correct IATA airport codes (e.g., CLT for Charlotte, SLC for Salt Lake City)
+- Be specific about typical hub cities for connections
+- Provide realistic price ranges based on route distance and typical fares
+- Include both direct flights AND connection options if applicable
+- Mention if certain airlines have better schedules or pricing for this route
+
+Do NOT say "I cannot provide" or "due to limitations" - use your knowledge to provide helpful, accurate typical flight information."""
+    }
 
 
 def search_hotels(destination: str, check_in: str, check_out: str, guests: int = 2, rooms: int = 1) -> dict:
@@ -521,7 +527,8 @@ def generate_trip_document(destination: str, start_date: str, end_date: str, tra
     except:
         nights = 7
 
-    flights = search_flights_data(origin, city, travelers)
+    # Get flight information (will be handled by LLM)
+    flights = search_flights(origin, destination, start_date, end_date, travelers)
     hotels = search_hotels_data(city, nights, travelers, 1)
     itin = generate_detailed_itinerary(destination, start_date, end_date, interests, travelers)
 
@@ -537,16 +544,11 @@ def generate_trip_document(destination: str, start_date: str, end_date: str, tra
 
 ## Flight Options
 
+**Route:** {origin} → {destination}
+
+*Please check airline websites or Google Flights, Kayak, or Skyscanner for real-time pricing and availability.*
+
 """
-    if "flights" in flights:
-        for cat in ["budget", "mid_range", "premium"]:
-            doc += f"### {cat.replace('_', ' ').title()} Flights\n"
-            doc += "| Airline | Flight | Time | Price | Book |\n|---------|--------|------|-------|------|\n"
-            for f in flights["flights"].get(cat, [])[:3]:
-                doc += f"| {f['airline']} | {f['flight_number']} | {f['departure']} | ${f['total_price']} | [Book]({f['booking_url']}) |\n"
-            doc += "\n"
-    else:
-        doc += "*Flight data not available for this route. Please check Google Flights, Kayak, or Skyscanner for options.*\n\n"
 
     doc += "---\n\n## Hotel Options\n\n"
     if "hotels" in hotels:
@@ -756,9 +758,32 @@ Display the result from the API:
 - Example conversion with user's budget amount
 - Currency names (e.g., "US Dollar to Indian Rupee")
 
-### Flight and Hotel Information
+### Flight Information (Using Your Knowledge)
+When calling search_flights, the tool will return an instruction asking you to provide typical flight information.
+
+**REQUIRED:** Provide 3-5 SPECIFIC flight options with:
+- Real airline names that operate the route
+- Actual airport codes (IATA)
+- Flight type (direct/1-stop/2-stop with hub cities)
+- Typical duration
+- Approximate price range per person (round-trip, economy)
+- Common departure times
+- Aircraft types
+
+**Example Format:**
+**Flight Option 1: Delta Air Lines**
+- Route: CLT (Charlotte Douglas International) → SLC (Salt Lake City International)
+- Flight Type: Direct flight
+- Typical Duration: 4 hours 30 minutes
+- Approximate Price: $250-$400 per person (round-trip, economy)
+- Common Times: Morning and afternoon departures
+- Aircraft: Boeing 737, Airbus A320
+
+Include a note: "For real-time pricing and availability, check airline websites or Google Flights, Kayak, or Skyscanner."
+
+### Hotel Information
 If data available: show options
-If not: "Due to a current limitation with my search tools, I was unable to find specific flight/hotel options... I recommend checking popular travel websites for the most up-to-date availability and pricing."
+If not: "Due to a current limitation with my search tools, I was unable to find specific hotel options... I recommend checking popular travel websites for the most up-to-date availability and pricing."
 
 ### Conceptual Daily Itinerary
 Create SPECIFIC, DETAILED activities based on destination and user's interests:

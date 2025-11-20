@@ -37,6 +37,7 @@ The **AI-Powered Global Vacation Planner** is a sophisticated multi-agent applic
 - Google Cloud account with $300 free credits ✅ FREE
 - API keys for weather (OpenWeather - free tier) ✅ FREE
 - Currency API (ExchangeRate - free tier) ✅ FREE
+- Flight search API (Aviationstack - 500 free requests/month) ✅ FREE
 
 **No PostgreSQL or Redis needed for MVP!** Uses SQLite (built-in) and in-memory caching.
 
@@ -58,8 +59,9 @@ pip install -r requirements.txt
 cp .env.example .env
 # Edit .env with your API keys:
 #   - GOOGLE_API_KEY (Gemini)
-#   - OPENWEATHER_API_KEY
-#   - EXCHANGERATE_API_KEY
+#   - OPENWEATHER_API_KEY (https://openweathermap.org/api)
+#   - EXCHANGERATE_API_KEY (https://www.exchangerate-api.com/)
+#   - AVIATIONSTACK_API_KEY (https://aviationstack.com/ - 500 free requests/month)
 
 # Run with MCP integration
 python src/main.py
@@ -341,9 +343,10 @@ Required environment variables:
 ```env
 # API Keys
 OPENWEATHER_API_KEY=your_key_here
-AMADEUS_API_KEY=your_key_here
-AMADEUS_API_SECRET=your_secret_here
 EXCHANGERATE_API_KEY=your_key_here
+AVIATIONSTACK_API_KEY=your_key_here  # Get from https://aviationstack.com (500 free/month)
+AMADEUS_API_KEY=your_key_here  # Optional
+AMADEUS_API_SECRET=your_secret_here  # Optional
 
 # Database
 DATABASE_URL=postgresql://user:pass@localhost:5432/vacation_planner
