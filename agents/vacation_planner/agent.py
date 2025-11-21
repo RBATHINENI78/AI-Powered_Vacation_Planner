@@ -25,6 +25,7 @@ from src.agents.immigration_specialist import ImmigrationSpecialistAgent
 from src.agents.booking_agents import FlightBookingAgent, HotelBookingAgent
 from src.agents.destination_intelligence import DestinationIntelligenceAgent
 from src.agents.document_generator import DocumentGeneratorAgent
+from src.agents.travel_advisory import TravelAdvisoryAgent
 
 # Import callbacks for tool execution tracking
 from src.callbacks import with_callbacks
@@ -33,6 +34,7 @@ from src.callbacks import with_callbacks
 orchestrator = OrchestratorAgent()
 
 # Initialize specialized agents for direct tool access
+travel_advisory = TravelAdvisoryAgent()
 financial_advisor = FinancialAdvisorAgent()
 immigration_specialist = ImmigrationSpecialistAgent()
 flight_booking = FlightBookingAgent()
@@ -43,6 +45,58 @@ document_generator = DocumentGeneratorAgent()
 
 # ==================== Lightweight Tool Wrappers ====================
 # These delegate to the specialized agents
+
+@with_callbacks
+async def check_travel_advisory(
+    origin_country: str,
+    destination_country: str,
+    start_date: str = "",
+    end_date: str = ""
+) -> dict:
+    """
+    Check travel advisories and restrictions BEFORE planning a trip.
+    This should be called FIRST to verify travel is possible.
+
+    Args:
+        origin_country: Traveler's citizenship/origin country (e.g., "United States", "Iran", "Cuba")
+        destination_country: Destination country (e.g., "France", "United States", "Yemen")
+        start_date: Travel start date (optional, YYYY-MM-DD format)
+        end_date: Travel end date (optional, YYYY-MM-DD format)
+
+    Returns:
+        Advisory result with can_proceed flag, warnings, and blockers.
+        If can_proceed is False, DO NOT proceed with trip planning.
+
+    IMPORTANT:
+    - For US citizens traveling abroad: Checks State Dept advisories (Level 1-4)
+    - For foreign nationals traveling TO USA: Checks USA travel ban list
+    - Level 4 or travel ban = BLOCKED (cannot proceed)
+    - Level 3 = WARNING (proceed with caution)
+    """
+    result = await travel_advisory.execute({
+        "origin_country": origin_country,
+        "destination_country": destination_country,
+        "travel_dates": {
+            "start": start_date,
+            "end": end_date
+        }
+    })
+
+    if result.get("status") == "success":
+        return {
+            "can_proceed": result.get("can_proceed", True),
+            "travel_type": result.get("travel_type", "international"),
+            "origin": result.get("origin", origin_country),
+            "destination": result.get("destination", destination_country),
+            "advisories": result.get("advisories", []),
+            "warnings": result.get("warnings", []),
+            "blockers": result.get("blockers", []),
+            "global_events": result.get("global_events", []),
+            "recommendation": result.get("recommendation", "")
+        }
+
+    return {"error": "Travel advisory check failed", "can_proceed": True}
+
 
 @with_callbacks
 async def get_weather_info(city: str, country: str = "") -> dict:
@@ -76,35 +130,49 @@ async def check_visa_requirements(citizenship: str, destination: str, duration_d
     Args:
         citizenship: Traveler's citizenship country (e.g., "India", "USA", "UK")
                     Extract from user's prompt if mentioned (e.g., "Citizenship: India")
-        destination: Destination country (e.g., "India", "France", "Japan")
+        destination: Destination country (e.g., "India", "France", "Japan") or "City, Country"
         duration_days: Length of stay in days
-        origin: Origin location (e.g., "Charlotte, USA") - used to detect domestic travel
+        origin: Origin location (e.g., "Charlotte, USA") - REQUIRED for domestic travel detection
 
-    IMPORTANT: Always extract citizenship from the user's prompt if provided.
-    Look for patterns like "Citizenship: [country]" or "citizen of [country]".
+    IMPORTANT:
+    - Always extract citizenship from the user's prompt if provided.
+    - Always provide origin parameter to detect domestic travel correctly.
+    - For domestic travel (origin and destination in same country), visa requirements don't apply.
     """
 
     # Extract country names from origin and destination to detect domestic travel
     def extract_country(location: str) -> str:
-        """Extract country from 'City, Country' format."""
+        """Extract country from 'City, Country' format or return as-is if just country."""
         if not location:
             return ""
+        # Normalize common country names
+        location = location.strip()
+        usa_variants = ["usa", "us", "united states", "america"]
+        if location.lower() in usa_variants:
+            return "USA"
+
         parts = [p.strip() for p in location.split(",")]
         # Return the last part as it's usually the country
-        return parts[-1] if parts else location
+        country = parts[-1] if len(parts) > 1 else parts[0]
+        # Normalize USA variants
+        if country.lower() in usa_variants:
+            return "USA"
+        return country
 
     origin_country = extract_country(origin)
     dest_country = extract_country(destination)
 
     # Check if this is domestic travel (same country)
+    # This applies regardless of citizenship - if traveling within the same country,
+    # no additional visa is needed for THIS TRIP (person already has valid status there)
     if origin_country and dest_country and origin_country.lower() == dest_country.lower():
         return {
             "travel_type": "domestic",
             "origin_country": origin_country,
             "destination_country": dest_country,
             "visa_required": False,
-            "message": f"This is domestic travel within {dest_country}. No additional visa required for this trip.",
-            "note": f"Ensure you have valid documentation to be in {dest_country} (existing visa/residency if applicable)."
+            "message": f"This is domestic travel within {dest_country}. No visa required for traveling between cities in the same country.",
+            "note": "Domestic travel does not require visa processing. Your existing legal status in the country applies."
         }
 
     # For international travel, consult the immigration specialist
@@ -213,6 +281,103 @@ async def search_hotels(destination: str, check_in: str, check_out: str, guests:
 
 
 @with_callbacks
+async def assess_budget_fit(
+    user_budget: float,
+    estimated_flights_cost: float,
+    estimated_hotels_cost: float,
+    estimated_activities_cost: float = 500.0,
+    estimated_food_cost: float = 300.0
+) -> dict:
+    """
+    🚨 MANDATORY BUDGET CHECKPOINT - Human-in-the-Loop (HITL) 🚨
+
+    Call this AFTER getting flight and hotel estimates but BEFORE generating itinerary.
+    This tool enforces budget assessment and forces you to STOP when user input is needed.
+
+    Args:
+        user_budget: User's stated budget in dollars
+        estimated_flights_cost: Total flight cost from search_flights
+        estimated_hotels_cost: Total hotel cost from search_hotels
+        estimated_activities_cost: Estimated activities (default: $500)
+        estimated_food_cost: Estimated food/dining (default: $300)
+
+    Returns:
+        {
+            "status": "proceed" | "needs_user_input",  # IF "needs_user_input" -> STOP!
+            "scenario": "budget_reasonable" | "budget_too_low" | "budget_excess",
+            "message": str,
+            "breakdown": {...},
+            "recommendation": str  # Present this to user if needs_user_input
+        }
+
+    CRITICAL BEHAVIOR:
+    - If status == "needs_user_input": You MUST display the message and recommendation,
+      then STOP and WAIT for user response. DO NOT continue with itinerary.
+    - If status == "proceed": Continue automatically with full trip planning.
+    """
+    total_estimated = (estimated_flights_cost + estimated_hotels_cost +
+                      estimated_activities_cost + estimated_food_cost)
+
+    breakdown = {
+        "flights": f"${estimated_flights_cost:,.2f}",
+        "hotels": f"${estimated_hotels_cost:,.2f}",
+        "activities": f"${estimated_activities_cost:,.2f}",
+        "food_dining": f"${estimated_food_cost:,.2f}",
+        "total_estimated": f"${total_estimated:,.2f}",
+        "user_budget": f"${user_budget:,.2f}",
+        "difference": f"${user_budget - total_estimated:,.2f}",
+        "difference_pct": f"{((user_budget - total_estimated) / total_estimated * 100) if total_estimated > 0 else 0:.1f}%"
+    }
+
+    # SCENARIO A: Budget too low (costs exceed budget by >50%)
+    if total_estimated > user_budget * 1.5:
+        shortage = total_estimated - user_budget
+        return {
+            "status": "needs_user_input",
+            "scenario": "budget_too_low",
+            "breakdown": breakdown,
+            "message": f"⚠️ BUDGET ALERT: Estimated costs (${total_estimated:,.2f}) exceed your budget (${user_budget:,.2f}) by ${shortage:,.2f}.",
+            "recommendation": (
+                "🛑 STOP HERE and present these numbered options to the user:\n\n"
+                f"1. Proceed anyway (will need additional funding of ~${shortage:,.2f})\n"
+                f"2. Adjust budget to ${total_estimated:,.2f} (recommended minimum)\n"
+                "3. Reduce scope: shorter trip, budget hotels, fewer activities\n"
+                "4. Suggest alternative destinations within your budget\n\n"
+                "⛔ DO NOT CONTINUE until user chooses an option."
+            )
+        }
+
+    # SCENARIO B: Budget much higher than needed (budget exceeds costs by >100%)
+    elif user_budget > total_estimated * 2.0:
+        excess = user_budget - total_estimated
+        return {
+            "status": "needs_user_input",
+            "scenario": "budget_excess",
+            "breakdown": breakdown,
+            "message": f"💰 GOOD NEWS: Your ${user_budget:,.2f} budget exceeds estimated costs (${total_estimated:,.2f}) by ${excess:,.2f}!",
+            "recommendation": (
+                "🛑 STOP HERE and present these numbered upgrade options to the user:\n\n"
+                f"1. Upgrade accommodations: Luxury 5-star hotels/resorts (+${excess * 0.4:,.2f})\n"
+                "2. Extend trip: Add more days, explore nearby destinations\n"
+                f"3. Premium experiences: Private tours, fine dining, spa treatments (+${excess * 0.3:,.2f})\n"
+                "4. Multi-destination: Add another city/country to your itinerary\n"
+                "5. Keep current plan and save the difference\n\n"
+                "⛔ DO NOT CONTINUE until user chooses an option."
+            )
+        }
+
+    # SCENARIO C: Budget reasonable (within ±50%)
+    else:
+        return {
+            "status": "proceed",
+            "scenario": "budget_reasonable",
+            "breakdown": breakdown,
+            "message": f"✅ Budget Assessment: Your ${user_budget:,.2f} budget is reasonable for estimated costs of ${total_estimated:,.2f}.",
+            "recommendation": "✓ Proceed automatically with full trip planning."
+        }
+
+
+@with_callbacks
 async def generate_detailed_itinerary(destination: str, start_date: str, end_date: str, interests: str, travelers: int = 2) -> dict:
     """Generate detailed day-by-day itinerary using Destination Intelligence agent."""
     # For itinerary, the DestinationIntelligence agent needs different task
@@ -236,37 +401,6 @@ async def generate_detailed_itinerary(destination: str, start_date: str, end_dat
     }
 
 
-@with_callbacks
-async def generate_trip_document(
-    destination: str,
-    start_date: str,
-    end_date: str,
-    travelers: int,
-    origin: str = "",
-    interests: str = "",
-    budget: float = 0.0
-) -> dict:
-    """
-    Generate complete trip planning document using DocumentGenerator agent.
-
-    This should be called AFTER all other tools to compile the results.
-    The document generator will format all the collected trip data.
-    """
-    result = await document_generator.execute({
-        "destination": destination,
-        "origin": origin,
-        "start_date": start_date,
-        "end_date": end_date,
-        "travelers": travelers,
-        "budget": budget,
-        "interests": interests
-    })
-
-    if result.get("status") == "success":
-        return result.get("document", {})
-    return {"error": "Document generation failed"}
-
-
 # ==================== ADK Agent Definition ====================
 
 # Create the main agent with tool wrappers
@@ -288,6 +422,9 @@ CRITICAL BEHAVIOR INSTRUCTIONS:
 AUTOMATICALLY call ALL relevant tools and generate the COMPLETE vacation plan including detailed itinerary.
 DO NOT ask "Would you like me to proceed?" or "Should I generate the itinerary?" - JUST DO IT.
 Your job is to deliver complete, actionable vacation plans, not to ask permission at every step.
+
+⚠️ **EXCEPTION**: The ONLY time you MUST pause is when the `assess_budget_fit` tool returns status="needs_user_input".
+In that case, you MUST display the options and WAIT for user response before continuing.
 
 IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
 
@@ -319,28 +456,46 @@ IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
 
    For EVERY vacation request, you MUST call these tools in order:
 
-   a) ALWAYS call get_weather_info(city, country) - DO NOT generate weather from your knowledge
+   a) **FIRST**: Call check_travel_advisory(origin_country, destination_country, start_date, end_date)
+      - This checks US State Department travel advisories and USA travel bans
+      - If can_proceed is FALSE, STOP and inform the user about the travel restriction
+      - If there are warnings (Level 3), inform the user but continue if they wish
+      - For US citizens traveling abroad: Shows advisory levels 1-4
+      - For foreign nationals traveling TO USA: Checks travel ban list
 
-   b) For international travel, ALWAYS call:
-      - check_visa_requirements(citizenship, destination, duration_days, origin)
+   b) ALWAYS call get_weather_info(city, country) - DO NOT generate weather from your knowledge
+
+   c) ALWAYS call check_visa_requirements(citizenship, destination, duration_days, origin)
+      - **CRITICAL**: Always pass the origin parameter to detect domestic travel!
+      - For domestic travel (origin and destination in same country), the tool returns "visa_required: false"
+      - Do NOT show visa requirements for domestic travel even if citizenship differs from destination
+      - Example: Charlotte, USA to SaltlakeCity, USA = domestic travel, no visa section needed
+
+   d) For international travel, ALWAYS call:
       - get_currency_exchange(origin, destination, amount=budget, travelers=X, nights=X)
         This returns BOTH currency exchange rates AND complete budget breakdown
       DO NOT use your knowledge - ALWAYS use the tools to get real-time data
 
-   c) ALWAYS call search_flights(origin, destination, departure_date, return_date, travelers)
+   e) ALWAYS call search_flights(origin, destination, departure_date, return_date, travelers)
       DO NOT generate flight information from your knowledge
 
-   d) ALWAYS call search_hotels(destination, check_in, check_out, guests, rooms)
+   f) ALWAYS call search_hotels(destination, check_in, check_out, guests, rooms)
       DO NOT generate hotel information from your knowledge
 
-   e) Call generate_detailed_itinerary(destination, start_date, end_date, interests, travelers)
+   g) 🚨 MANDATORY BUDGET CHECKPOINT 🚨
+      ALWAYS call assess_budget_fit(user_budget, estimated_flights_cost, estimated_hotels_cost)
+      - Extract costs from search_flights and search_hotels results
+      - If result["status"] == "needs_user_input":
+        * Display result["message"] and result["recommendation"] to user
+        * STOP and WAIT for user to choose an option
+        * DO NOT continue with itinerary generation
+      - If result["status"] == "proceed":
+        * Continue automatically with itinerary generation
+
+   h) Call generate_detailed_itinerary(destination, start_date, end_date, interests, travelers)
       and USE THE RETURNED DATA to create the day-by-day plan
 
-   f) FINALLY, call generate_trip_document(destination, start_date, end_date, travelers, origin, interests, budget)
-      - This generates the final document structure for presenting the trip plan
-      - Runs fast with no duplicate work
-
-   g) Present the COMPLETE vacation plan with ALL sections:
+   i) Present the COMPLETE vacation plan with ALL sections:
       - Weather & Packing
       - Visa Requirements (international only)
       - Currency Exchange & Budget Breakdown (include saving tips!)
@@ -355,13 +510,14 @@ IMPORTANT INSTRUCTIONS FOR EXTRACTING USER INFORMATION:
 
 Always use information explicitly provided by the user. Only ask for clarification if critical information is genuinely missing.""",
     tools=[
+        FunctionTool(check_travel_advisory),  # FIRST - Check travel restrictions before planning
         FunctionTool(get_weather_info),
         FunctionTool(check_visa_requirements),
         FunctionTool(get_currency_exchange),
         FunctionTool(search_flights),
         FunctionTool(search_hotels),
+        FunctionTool(assess_budget_fit),  # MANDATORY HITL checkpoint - call after flights & hotels
         FunctionTool(generate_detailed_itinerary),
-        FunctionTool(generate_trip_document),  # Final step - compiles all data into document
     ]
 )
 
