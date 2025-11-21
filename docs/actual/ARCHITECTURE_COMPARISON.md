@@ -362,13 +362,13 @@ graph TB
     end
 
     subgraph "FunctionTool Layer (7 tools)"
-        T1[@with_callbacks<br/>get_weather_info]
-        T2[@with_callbacks<br/>check_visa_requirements]
-        T3[@with_callbacks<br/>get_currency_exchange]
-        T4[@with_callbacks<br/>search_flights]
-        T5[@with_callbacks<br/>search_hotels]
-        T6[@with_callbacks<br/>generate_itinerary]
-        T7[@with_callbacks<br/>generate_document]
+        T1["with_callbacks<br/>get_weather_info"]
+        T2["with_callbacks<br/>check_visa_requirements"]
+        T3["with_callbacks<br/>get_currency_exchange"]
+        T4["with_callbacks<br/>search_flights"]
+        T5["with_callbacks<br/>search_hotels"]
+        T6["with_callbacks<br/>generate_itinerary"]
+        T7["with_callbacks<br/>generate_document"]
     end
 
     subgraph "Agent Layer"
