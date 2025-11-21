@@ -749,7 +749,7 @@ Main entry point for AI-Powered Vacation Planner with MCP integration
 import os
 import asyncio
 from dotenv import load_dotenv
-from agents.orchestrator import OrchestratorAgent
+from src.agents.orchestrator import OrchestratorAgent
 
 # Load environment
 load_dotenv()
