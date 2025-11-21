@@ -2,7 +2,7 @@
 
 **Project**: AI-Powered Vacation Planner
 **Framework**: Google Agent Development Kit (ADK)
-**Last Updated**: 2025-11-20
+**Last Updated**: 2025-11-21
 
 ---
 
@@ -19,7 +19,7 @@
 
 ## Agent Architecture
 
-### 11 Specialized Agents Implemented
+### 12 Specialized Agents Implemented
 
 #### 1. BaseAgent (Foundation)
 **File**: `src/agents/base_agent.py`
@@ -48,15 +48,17 @@ class BaseAgent(ABC):
 #### 2. OrchestratorAgent (Main Coordinator)
 **File**: `src/agents/orchestrator.py`
 
-Master orchestrator for 4-phase vacation planning workflow:
-1. Security Phase - PII detection
-2. Research Phase - Sequential execution
-3. Booking Phase - Parallel execution
-4. Optimization Phase - Loop execution
+Master orchestrator for 5-phase vacation planning workflow:
+0. **Travel Advisory Phase** - Check travel bans/warnings FIRST (blocks if needed)
+1. **Security Phase** - PII detection
+2. **Research Phase** - Sequential execution
+3. **Booking Phase** - Parallel execution
+4. **Optimization Phase** - Loop execution
 
 ```python
 class OrchestratorAgent(BaseAgent):
     def __init__(self):
+        self.travel_advisory_agent = TravelAdvisoryAgent()  # NEW: First checkpoint
         self.security_agent = SecurityGuardianAgent()
         self.research_agent = SequentialResearchAgent()
         self.booking_agent = ParallelBookingAgent()
@@ -66,12 +68,90 @@ class OrchestratorAgent(BaseAgent):
 **Capabilities**:
 - Natural language request parsing
 - Phase coordination with rollback on critical errors
+- **NEW**: Travel restriction blocking before planning starts
 - Final plan compilation with itinerary generation
-- A2A message handling for security alerts and budget updates
+- A2A message handling for security alerts, budget updates, travel blocks
 
 ---
 
-#### 3. SecurityGuardianAgent (PII Detection)
+#### 3. TravelAdvisoryAgent (Travel Restrictions) **NEW**
+**File**: `src/agents/travel_advisory.py`
+
+**Phase 0 checkpoint** - Checks travel bans and warnings BEFORE planning begins:
+
+**Data Sources**:
+1. **US State Department Travel Advisories** (4 levels)
+2. **USA Travel Ban Countries** (14 countries with full ban)
+3. **USA Restricted Countries** (25 countries with exemptions)
+4. **Tavily Search API** - Real-time global events, protests, natural disasters
+
+```python
+class TravelAdvisoryAgent(BaseAgent):
+    def __init__(self):
+        self.tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+        # Check 4 data sources before allowing travel planning
+```
+
+**Blocking Logic**:
+```python
+# Check 1: USA Travel Ban (Afghanistan, Iran, Yemen, etc.)
+if destination in USA_FULL_BAN_COUNTRIES:
+    blockers.append({
+        "type": "usa_travel_ban",
+        "message": "This country is on the USA travel ban list",
+        "exemptions": ["Diplomats", "Humanitarian workers"]
+    })
+
+# Check 2: State Dept Advisory Level 4 (Do Not Travel)
+if advisory_level == 4:
+    blockers.append({
+        "type": "state_dept_level_4",
+        "message": "US State Department: Do Not Travel"
+    })
+
+# Check 3: Tavily Global Events (protests, disasters, emergencies)
+events = await self._search_global_events(destination, travel_dates)
+for event in events:
+    if contains_critical_keywords(event):
+        warnings.append({
+            "type": "global_event",
+            "message": event.title,
+            "source": "Tavily Search"
+        })
+
+# BLOCK if any blockers exist
+can_proceed = len(blockers) == 0
+```
+
+**Tavily Integration**:
+```python
+async def _search_global_events(destination, travel_dates):
+    queries = [
+        f"{destination} travel safety warnings alerts {dates}",
+        f"{destination} protests demonstrations civil unrest",
+        f"{destination} natural disasters weather emergencies"
+    ]
+
+    for query in queries:
+        response = self.tavily_client.search(
+            query=query,
+            search_depth="basic",
+            max_results=3,
+            include_answer=True
+        )
+        # Check for critical keywords: emergency, evacuation, danger, etc.
+```
+
+**A2A Communication**:
+- Sends `travel_blocked` to Orchestrator if blockers exist
+- Sends `travel_warning` for advisories (can still proceed)
+
+**Domestic Travel Detection**:
+Skips all checks if origin and destination are in same country.
+
+---
+
+#### 4. SecurityGuardianAgent (PII Detection)
 **File**: `src/agents/security_guardian.py`
 
 Protects user data with 8 PII detection patterns:
@@ -175,13 +255,59 @@ Activity and attraction curation:
 
 ---
 
-#### 11. DocumentGeneratorAgent
+#### 11. DocumentGeneratorAgent (Enhanced)
 **File**: `src/agents/document_generator.py`
 
-Final trip document compilation:
-- Markdown-formatted trip plans
-- Section organization (overview, weather, bookings, budget)
-- Integration of all agent results
+Final trip document compilation with **NEW** .docx generation:
+
+**Output Formats**:
+1. **Markdown** - Always generated
+2. **Microsoft Word (.docx)** - NEW! Professional formatted documents
+
+```python
+from docx import Document
+from docx.shared import Inches, Pt, RGBColor
+
+class DocumentGeneratorAgent(BaseAgent):
+    def _generate_docx(self, document: Dict) -> Dict:
+        doc = Document()
+        # Professional formatting with:
+        # - Title page with trip dates
+        # - Table of contents
+        # - 8 sections (overview, weather, visa, currency, flights, hotels, itinerary, reminders)
+        # - Structured tables for data
+        # - Branded footer
+```
+
+**Document Sections**:
+1. Trip Overview (table with destination, dates, travelers, budget)
+2. Weather & Packing (conditions + suggestions)
+3. Visa Requirements (with domestic travel detection)
+4. Currency & Budget (exchange rates + breakdown)
+5. Flight Options (top 3 options)
+6. Hotel Options (top 3 with ratings)
+7. Day-by-Day Itinerary (activities list)
+8. Important Reminders (checklist)
+
+**File Storage**:
+```python
+OUTPUT_DIR = Path(__file__).parent.parent.parent / "outputs"
+filename = f"{destination}_{timestamp}.docx"
+file_path = OUTPUT_DIR / filename
+```
+
+**Download Integration**:
+Returns download URL for FastAPI endpoint:
+```python
+return {
+    "docx_filename": "paris_20251121_143022.docx",
+    "docx_path": "/path/to/outputs/paris_20251121_143022.docx",
+    "download_url": "/download/paris_20251121_143022.docx"
+}
+```
+
+**A2A Communication**:
+Sends `document_generated` message to Orchestrator with filename.
 
 ---
 
@@ -323,13 +449,44 @@ while current_cost > target_budget and iteration < max_iterations:
 
 ## Function Tools
 
-### 7 FunctionTools with @with_callbacks
+### 8 FunctionTools with @with_callbacks
 
 **File**: `agents/vacation_planner/agent.py`
 
 All tools wrapped with callback decorator for observability:
 
-#### 1. get_weather_info
+#### 1. check_travel_advisory **NEW**
+```python
+@with_callbacks
+async def check_travel_advisory(
+    origin_country: str,
+    destination_country: str,
+    destination_city: str = "",
+    departure_date: str = "",
+    return_date: str = ""
+) -> dict:
+    """
+    Check travel advisories, bans, and global events BEFORE planning.
+    This is the FIRST tool that should be called.
+    """
+    result = await travel_advisory.execute({
+        "origin_country": origin_country,
+        "destination_country": destination_country,
+        "destination_city": destination_city,
+        "travel_dates": {
+            "start": departure_date,
+            "end": return_date
+        }
+    })
+    return result
+```
+
+**Blocks Planning If**:
+- Destination on USA travel ban list (14 countries)
+- State Department Level 4 advisory (Do Not Travel)
+- Critical global events detected by Tavily
+
+#### 2. get_weather_info
 ```python
 @with_callbacks
 async def get_weather_info(city: str, country: str = "") -> dict:
@@ -341,7 +498,7 @@ async def get_weather_info(city: str, country: str = "") -> dict:
     return result
 ```
 
-#### 2. check_visa_requirements
+#### 3. check_visa_requirements
 ```python
 @with_callbacks
 async def check_visa_requirements(
@@ -364,7 +521,7 @@ async def check_visa_requirements(
     return result
 ```
 
-#### 3. get_currency_exchange
+#### 4. get_currency_exchange
 ```python
 @with_callbacks
 async def get_currency_exchange(
@@ -387,7 +544,7 @@ async def get_currency_exchange(
     }
 ```
 
-#### 4. search_flights
+#### 5. search_flights
 ```python
 @with_callbacks
 async def search_flights(
@@ -402,7 +559,7 @@ async def search_flights(
     return result.get("flight_info", {})
 ```
 
-#### 5. search_hotels
+#### 6. search_hotels
 ```python
 @with_callbacks
 async def search_hotels(
@@ -418,7 +575,88 @@ async def search_hotels(
     return result
 ```
 
-#### 6. generate_detailed_itinerary
+#### 7. assess_budget_fit **NEW - HITL**
+```python
+@with_callbacks
+async def assess_budget_fit(
+    user_budget: float,
+    estimated_flights_cost: float,
+    estimated_hotels_cost: float,
+    estimated_activities_cost: float = 500.0,
+    estimated_food_cost: float = 300.0
+) -> dict:
+    """
+    🚨 MANDATORY BUDGET CHECKPOINT - Human-in-the-Loop (HITL) 🚨
+
+    Call this AFTER getting flight and hotel estimates but BEFORE itinerary.
+    This tool enforces budget assessment and forces LLM to STOP when user input is needed.
+
+    Returns:
+        - status="needs_user_input" → MUST stop and present options to user
+        - status="proceed" → Can continue automatically
+    """
+    total_estimated = (estimated_flights_cost + estimated_hotels_cost +
+                      estimated_activities_cost + estimated_food_cost)
+
+    # SCENARIO A: Budget too low (costs exceed budget by >50%)
+    if total_estimated > user_budget * 1.5:
+        shortage = total_estimated - user_budget
+        return {
+            "status": "needs_user_input",
+            "scenario": "budget_too_low",
+            "user_budget": user_budget,
+            "estimated_cost": total_estimated,
+            "shortage": shortage,
+            "message": f"⚠️ Budget Warning: Trip costs ${total_estimated:,.2f} but budget is ${user_budget:,.2f}",
+            "recommendation": "🛑 STOP HERE and present options to user"
+        }
+
+    # SCENARIO B: Budget excess (budget exceeds costs by >100%)
+    elif user_budget > total_estimated * 2.0:
+        excess = user_budget - total_estimated
+        return {
+            "status": "needs_user_input",
+            "scenario": "budget_excess",
+            "user_budget": user_budget,
+            "estimated_cost": total_estimated,
+            "excess": excess,
+            "message": f"💰 Budget has ${excess:,.2f} surplus (Budget: ${user_budget:,.2f}, Est: ${total_estimated:,.2f})",
+            "recommendation": "🛑 STOP HERE and ask user about upgrades"
+        }
+
+    # SCENARIO C: Budget reasonable (within ±50%)
+    else:
+        return {
+            "status": "proceed",
+            "scenario": "budget_reasonable",
+            "user_budget": user_budget,
+            "estimated_cost": total_estimated,
+            "message": "✅ Budget assessment: reasonable fit"
+        }
+```
+
+**Code-Enforced Behavior**:
+This tool uses explicit status codes (`"needs_user_input"` vs `"proceed"`) to force the LLM to stop execution and wait for user input. Unlike passive instruction-based approaches, this creates a mandatory checkpoint that cannot be skipped.
+
+**Workflow Integration**:
+```python
+# Step g) in agent.py workflow instructions:
+g) 🚨 MANDATORY BUDGET CHECKPOINT 🚨
+   ALWAYS call assess_budget_fit(user_budget, estimated_flights_cost, estimated_hotels_cost)
+   - If result["status"] == "needs_user_input":
+     * Display result["message"] and result["recommendation"] to user
+     * STOP and WAIT for user to choose an option
+     * DO NOT continue with itinerary generation
+   - If result["status"] == "proceed":
+     * Continue automatically with itinerary generation
+```
+
+**Fixes Budget HITL Regression**:
+Previously, budget assessment relied on passive LLM instructions that conflicted ("BE PROACTIVE" vs "WAIT for user"). This code-enforced tool resolves the issue by making HITL mandatory through function return values.
+
+---
+
+#### 8. generate_detailed_itinerary
 ```python
 @with_callbacks
 async def generate_detailed_itinerary(
@@ -437,7 +675,7 @@ async def generate_detailed_itinerary(
     }
 ```
 
-#### 7. generate_trip_document
+#### 9. generate_trip_document
 ```python
 @with_callbacks
 async def generate_trip_document(
@@ -747,33 +985,76 @@ async def get_access_token(self) -> str:
     return response.json()["access_token"]
 ```
 
+### 5. Tavily Search API **NEW**
+**Agent**: TravelAdvisoryAgent
+**Purpose**: Real-time global events, safety alerts, protests, natural disasters
+
+**Usage**:
+```python
+from tavily import TavilyClient
+
+tavily_client = TavilyClient(api_key=os.getenv("TAVILY_API_KEY"))
+
+# Search for safety alerts
+response = tavily_client.search(
+    query=f"{destination} travel safety warnings alerts",
+    search_depth="basic",
+    max_results=3,
+    include_answer=True
+)
+
+# Process results
+for result in response.get("results", []):
+    event = {
+        "title": result.get("title", ""),
+        "description": result.get("content", "")[:500],
+        "url": result.get("url", ""),
+        "relevance_score": result.get("score", 0)
+    }
+```
+
+**Search Queries**:
+1. `{destination} travel safety warnings alerts {dates}`
+2. `{destination} protests demonstrations civil unrest`
+3. `{destination} natural disasters weather emergencies`
+
+**Critical Keywords Detection**:
+Flags events containing: emergency, evacuation, danger, warning, protest, violence, unrest, attack, earthquake, hurricane, tsunami, flood, outbreak, epidemic, quarantine
+
 ---
 
 ## Summary Statistics
 
 | Category | Count | Details |
 |----------|-------|---------|
-| **Agents** | 11 | Base, Orchestrator, Security, Destination, Immigration, Financial, Flight, Hotel, CarRental, Experience, Document |
+| **Agents** | 12 | Base, Orchestrator, TravelAdvisory, Security, Destination, Immigration, Financial, Flight, Hotel, CarRental, Experience, Document |
 | **Workflow Patterns** | 3 | Sequential, Parallel, Loop |
-| **FunctionTools** | 7 | All with @with_callbacks decorator |
+| **FunctionTools** | 8 | All with @with_callbacks decorator + assess_budget_fit HITL |
 | **MCP Servers** | 3 | amadeus_client, amadeus_hotels, amadeus_flights |
-| **External APIs** | 4 | OpenWeather, ExchangeRate, RestCountries, Amadeus |
-| **A2A Message Types** | 3 | security_alert, weather_advisory, budget_update |
+| **External APIs** | 5 | OpenWeather, ExchangeRate, RestCountries, Amadeus, Tavily |
+| **A2A Message Types** | 5 | security_alert, weather_advisory, budget_update, travel_blocked, travel_warning |
 | **Observability Features** | 3 | Tracing (event log), Metrics (per agent/tool), Logging (structured) |
-| **Total Code Lines** | ~3500+ | Across all agents and supporting code |
+| **Document Formats** | 2 | Markdown + .docx (Microsoft Word) |
+| **Download API** | 1 | FastAPI endpoints for .docx download |
+| **Total Code Lines** | ~4000+ | Across all agents and supporting code |
 
 ---
 
 ## Key ADK Patterns Demonstrated
 
-1. **Multi-Agent Orchestration**: Orchestrator coordinates 4 phases with specialized agents
+1. **Multi-Agent Orchestration**: Orchestrator coordinates 5 phases with specialized agents
 2. **Workflow Patterns**: Sequential (research), Parallel (booking), Loop (optimization)
 3. **A2A Communication**: Inter-agent messaging with priority and handlers
 4. **Callbacks & Observability**: Before/after hooks, metrics, structured logging
-5. **MCP Integration**: External API abstraction (Amadeus, OpenWeather)
-6. **HITL Decision Points**: Budget optimization with human approval
-7. **Error Handling**: Graceful degradation, fallback strategies
-8. **Real-time Data**: Live API integration with caching and fallbacks
+5. **MCP Integration**: External API abstraction (Amadeus, OpenWeather, Tavily)
+6. **HITL Decision Points**:
+   - **Budget assessment** with code-enforced checkpoints (assess_budget_fit)
+   - **Budget optimization** with human approval (LoopBudgetOptimizer)
+7. **Travel Safety**: Pre-flight blocking for restricted destinations (TravelAdvisoryAgent)
+8. **Error Handling**: Graceful degradation, fallback strategies
+9. **Real-time Data**: Live API integration with caching and fallbacks
+10. **Document Generation**: Multi-format output (Markdown + .docx) with download API
+11. **Code-Enforced HITL**: Function return values force LLM to stop (vs passive instructions)
 
 ---
 

@@ -40,18 +40,23 @@ This directory contains comprehensive documentation of the **actual implementati
 
 | Category | Count | Details |
 |----------|-------|---------|
-| **Agents** | 11 | 1 Base + 1 Orchestrator + 9 Specialized |
+| **Agents** | 12 | 1 Base + 1 Orchestrator + 10 Specialized (incl. TravelAdvisory) |
 | **Workflow Patterns** | 3 | Sequential, Parallel (3-4x speedup), Loop (max 5 iterations) |
-| **Tools** | 7 | All with @with_callbacks decorator |
+| **Tools** | 8 | All with @with_callbacks decorator + assess_budget_fit HITL |
 | **MCP Servers** | 3 | Amadeus Hotels, Flights, Client |
-| **External APIs** | 4 | OpenWeather, ExchangeRate, RestCountries, Amadeus |
+| **External APIs** | 5 | OpenWeather, ExchangeRate, RestCountries, Amadeus, Tavily |
 | **Callbacks** | Full | Before/After, Async support, Metrics |
 | **Observability** | Complete | Tracing, Metrics, Logging |
+| **Download API** | Yes | .docx document download endpoints |
 
 ### Agent Hierarchy
 
 ```
 OrchestratorAgent
+├── Phase 0: TravelAdvisoryAgent (NEW - Blocks restricted travel)
+│   ├── US State Dept Travel Advisories
+│   ├── USA Travel Ban List
+│   └── Tavily Global Events Search
 ├── Phase 1: SecurityGuardianAgent
 ├── Phase 2: SequentialResearchAgent
 │   ├── DestinationIntelligenceAgent
@@ -63,7 +68,7 @@ OrchestratorAgent
 │   ├── CarRentalAgent
 │   └── ExperienceCuratorAgent
 ├── Phase 4: LoopBudgetOptimizer
-└── Final: DocumentGeneratorAgent
+└── Final: DocumentGeneratorAgent (.docx + markdown)
 ```
 
 ### Technology Stack
@@ -99,10 +104,13 @@ OrchestratorAgent
 
 ## 📝 Notes
 
-- This documentation reflects the state as of commit `ee46296`
+- This documentation reflects the state as of commit `57cbbc0`
 - Dead code cleanup removes ~35 KB of legacy code
 - Migration from static tools to agent-based architecture is complete
 - All diagrams use Mermaid format for easy updating
+- **NEW**: TravelAdvisoryAgent with Tavily Search integration
+- **NEW**: Budget HITL tool (assess_budget_fit) - code-enforced checkpoint
+- **NEW**: .docx document generation with download API
 
 ## 🚀 Next Steps
 
@@ -110,8 +118,10 @@ OrchestratorAgent
 2. Implement [Cleanup Recommendations](./CLEANUP_RECOMMENDATIONS.md)
 3. Update test suite to match async agent interface
 4. Consider adding flight search via Amadeus API (currently LLM-powered)
+5. Test budget HITL feature with various budget scenarios
+6. Expand Tavily search integration to other agents
 
 ---
 
-*Last Updated: 2025-01-20*
-*Branch: feature/improvements*
+*Last Updated: 2025-11-21*
+*Branch: feature/code-cleanup*

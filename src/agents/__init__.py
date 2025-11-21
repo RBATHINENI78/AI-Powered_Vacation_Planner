@@ -15,6 +15,7 @@ from .parallel_agent import ParallelBookingAgent
 from .loop_agent import LoopBudgetOptimizer
 from .orchestrator import OrchestratorAgent
 from .document_generator import DocumentGeneratorAgent
+from .travel_advisory import TravelAdvisoryAgent
 
 __all__ = [
     'BaseAgent',
@@ -30,5 +31,6 @@ __all__ = [
     'ParallelBookingAgent',
     'LoopBudgetOptimizer',
     'OrchestratorAgent',
-    'DocumentGeneratorAgent'
+    'DocumentGeneratorAgent',
+    'TravelAdvisoryAgent'
 ]
