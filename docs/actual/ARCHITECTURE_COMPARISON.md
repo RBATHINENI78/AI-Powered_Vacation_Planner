@@ -1,7 +1,7 @@
 # Architecture Comparison: Planned vs Actual Implementation
 
 **Project**: AI-Powered Vacation Planner
-**Last Updated**: 2025-11-20
+**Last Updated**: 2025-11-21
 
 ---
 
@@ -30,11 +30,12 @@ Evolved architecture with stronger emphasis on:
 ### Key Improvements
 | Aspect | Planned | Actual | Impact |
 |--------|---------|--------|--------|
-| **Agent Count** | 6-8 agents | 11 agents | Better separation of concerns |
+| **Agent Count** | 6-8 agents | 12 agents | Better separation of concerns |
 | **Workflow Patterns** | Sequential only | 3 patterns (Seq, Par, Loop) | 3-4x performance improvement |
-| **Tool Architecture** | Standalone tools | Agent-wrapped tools | Better observability |
+| **Tool Architecture** | Standalone tools | Agent-wrapped tools + HITL | Better observability + safety |
 | **A2A Communication** | Basic messaging | Full message registry + handlers | Enhanced coordination |
 | **Observability** | Basic logging | Tracing + Metrics + Callbacks | Production-ready monitoring |
+| **Travel Safety** | None | Phase 0 blocking checkpoint | Prevents restricted travel |
 
 ---
 
@@ -81,11 +82,13 @@ graph TD
 graph TD
     Root[Vacation Planner Root Agent] --> Orch[OrchestratorAgent]
 
+    Orch --> Phase0[Phase 0: Travel Advisory]
     Orch --> Phase1[Phase 1: Security]
     Orch --> Phase2[Phase 2: Research]
     Orch --> Phase3[Phase 3: Booking]
     Orch --> Phase4[Phase 4: Optimization]
 
+    Phase0 --> TA[TravelAdvisoryAgent]
     Phase1 --> SG[SecurityGuardianAgent]
 
     Phase2 --> SEQ[SequentialResearchAgent]
@@ -101,18 +104,22 @@ graph TD
 
     Phase4 --> LOOP[LoopBudgetOptimizer]
 
+    TA --> SD[US State Dept API]
+    TA --> TV[Tavily Search API]
     DI --> OW[OpenWeather API]
     IS --> RC[RestCountries API]
     FA --> ER[ExchangeRate API]
     FB --> AM1[Amadeus Flights MCP]
     HB --> AM2[Amadeus Hotels MCP]
 
+    TA -.A2A.-> Orch
     SG -.A2A.-> Orch
     DI -.A2A.-> IS
     FA -.A2A.-> Orch
 
     style Root fill:#e1f5ff
     style Orch fill:#d4edda
+    style TA fill:#ffcccc
     style SEQ fill:#fff3cd
     style PAR fill:#f8d7da
     style LOOP fill:#d1ecf1
@@ -120,12 +127,12 @@ graph TD
 ```
 
 **Characteristics**:
-- 4-phase orchestration
-- 11 specialized agents
+- 5-phase orchestration (NEW: Phase 0 blocks restricted travel)
+- 12 specialized agents (NEW: TravelAdvisoryAgent)
 - 3 workflow pattern agents (Sequential, Parallel, Loop)
 - MCP server integration
 - A2A communication (dotted lines)
-- External API integration
+- External API integration (NEW: Tavily Search)
 
 ---
 
@@ -361,14 +368,16 @@ graph TB
         Root[Vacation Planner Agent]
     end
 
-    subgraph "FunctionTool Layer (7 tools)"
+    subgraph "FunctionTool Layer (8 tools)"
+        T0["with_callbacks<br/>check_travel_advisory"]
         T1["with_callbacks<br/>get_weather_info"]
         T2["with_callbacks<br/>check_visa_requirements"]
         T3["with_callbacks<br/>get_currency_exchange"]
         T4["with_callbacks<br/>search_flights"]
         T5["with_callbacks<br/>search_hotels"]
-        T6["with_callbacks<br/>generate_itinerary"]
-        T7["with_callbacks<br/>generate_document"]
+        T6["with_callbacks<br/>assess_budget_fit (HITL)"]
+        T7["with_callbacks<br/>generate_itinerary"]
+        T8["with_callbacks<br/>generate_document"]
     end
 
     subgraph "Agent Layer"
@@ -397,14 +406,16 @@ graph TB
         CB[ToolCallbackManager]
     end
 
-    Root --> T1 & T2 & T3 & T4 & T5 & T6 & T7
+    Root --> T0 & T1 & T2 & T3 & T4 & T5 & T6 & T7 & T8
 
+    T0 --> CB
     T1 --> CB --> A1
     T2 --> CB --> A2
     T3 --> CB --> A3
     T4 --> CB --> A4
     T5 --> CB --> A5
-    T7 --> CB --> A6
+    T6 --> CB
+    T8 --> CB --> A6
 
     A1 --> E1
     A2 --> E2
@@ -665,6 +676,7 @@ graph TB
     end
 
     subgraph "Domain Agents"
+        TA2[TravelAdvisory<br/>Restriction Checking]
         SG[SecurityGuardian<br/>PII Detection]
         DI[DestinationIntelligence<br/>Weather Analysis]
         IS[ImmigrationSpecialist<br/>Visa Checking]
