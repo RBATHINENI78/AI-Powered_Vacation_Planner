@@ -11,6 +11,7 @@ from typing import Dict, Any
 from loguru import logger
 
 from .base_agent import BaseAgent
+from .travel_advisory import TravelAdvisoryAgent
 from .security_guardian import SecurityGuardianAgent
 from .sequential_agent import SequentialResearchAgent
 from .parallel_agent import ParallelBookingAgent
@@ -20,6 +21,7 @@ from .loop_agent import LoopBudgetOptimizer
 class OrchestratorAgent(BaseAgent):
     """
     Main Orchestrator Agent that coordinates all vacation planning phases:
+    0. Travel Advisory Phase - Check travel bans/warnings FIRST (blocks if needed)
     1. Security Phase - PII detection
     2. Research Phase - Sequential agent (Destination -> Immigration -> Financial)
     3. Booking Phase - Parallel agent (Flights, Hotels, Car, Activities)
@@ -33,6 +35,7 @@ class OrchestratorAgent(BaseAgent):
         )
 
         # Initialize phase agents
+        self.travel_advisory_agent = TravelAdvisoryAgent()  # NEW: First checkpoint
         self.security_agent = SecurityGuardianAgent()
         self.research_agent = SequentialResearchAgent()
         self.booking_agent = ParallelBookingAgent()
@@ -41,6 +44,8 @@ class OrchestratorAgent(BaseAgent):
         # Register A2A message handlers
         self.register_message_handler("security_alert", self._handle_security_alert)
         self.register_message_handler("budget_update", self._handle_budget_update)
+        self.register_message_handler("travel_blocked", self._handle_travel_blocked)
+        self.register_message_handler("travel_warning", self._handle_travel_warning)
 
         # Track overall execution
         self.execution_phases = []
@@ -84,6 +89,46 @@ class OrchestratorAgent(BaseAgent):
         """
         results = {}
         phase_log = []
+
+        # ==================== Phase 0: Travel Advisory ====================
+        logger.info("[ORCHESTRATOR] Phase 0: Travel Advisory Check")
+
+        # Determine origin country (default to US if not specified)
+        origin_country = input_data.get("origin_country", "United States")
+        if input_data.get("citizenship"):
+            origin_country = input_data.get("citizenship")
+
+        advisory_input = {
+            "origin_country": origin_country,
+            "destination_country": input_data.get("country", ""),
+            "destination_city": input_data.get("city", ""),
+            "travel_dates": {
+                "start": input_data.get("departure_date", ""),
+                "end": input_data.get("return_date", "")
+            }
+        }
+
+        advisory_result = await self.travel_advisory_agent.execute(advisory_input)
+        results["travel_advisory"] = advisory_result
+
+        phase_log.append({
+            "phase": "travel_advisory",
+            "status": "blocked" if not advisory_result.get("can_proceed", True) else "success",
+            "execution_time_ms": advisory_result.get("_metadata", {}).get("execution_time_ms", 0)
+        })
+
+        # BLOCK travel planning if advisories indicate cannot proceed
+        if not advisory_result.get("can_proceed", True):
+            blockers = advisory_result.get("blockers", [])
+            return {
+                "status": "blocked",
+                "reason": "Travel restrictions prevent planning this trip",
+                "travel_advisory": advisory_result,
+                "blockers": blockers,
+                "recommendation": advisory_result.get("recommendation", ""),
+                "phase_log": phase_log,
+                "message": self._format_blocker_message(blockers)
+            }
 
         # ==================== Phase 1: Security ====================
         logger.info("[ORCHESTRATOR] Phase 1: Security Check")
@@ -437,3 +482,38 @@ class OrchestratorAgent(BaseAgent):
         """Handle budget update from Financial Advisor."""
         logger.info(f"[ORCHESTRATOR] Budget update: {message.content}")
         return {"status": "acknowledged"}
+
+    def _handle_travel_blocked(self, message) -> Dict[str, Any]:
+        """Handle travel blocked notification from Travel Advisory Agent."""
+        logger.error(f"[ORCHESTRATOR] Travel BLOCKED: {message.content}")
+        return {"status": "acknowledged", "action": "blocking_travel"}
+
+    def _handle_travel_warning(self, message) -> Dict[str, Any]:
+        """Handle travel warning from Travel Advisory Agent."""
+        logger.warning(f"[ORCHESTRATOR] Travel WARNING: {message.content}")
+        return {"status": "acknowledged", "action": "proceeding_with_caution"}
+
+    def _format_blocker_message(self, blockers: list) -> str:
+        """Format blocker messages for user display."""
+        if not blockers:
+            return ""
+
+        messages = ["⛔ TRAVEL BLOCKED - Cannot proceed with planning:\n"]
+        for blocker in blockers:
+            blocker_type = blocker.get("type", "unknown")
+            message = blocker.get("message", "")
+            details = blocker.get("details", "")
+
+            messages.append(f"\n🚫 {message}")
+            if details:
+                messages.append(f"   Details: {details}")
+
+            # Add exemptions if available
+            exemptions = blocker.get("exemptions", [])
+            if exemptions:
+                messages.append("\n   Possible exemptions:")
+                for exemption in exemptions:
+                    messages.append(f"   • {exemption}")
+
+        messages.append("\n\n💡 Please choose an alternative destination or verify if you qualify for an exemption.")
+        return "\n".join(messages)
