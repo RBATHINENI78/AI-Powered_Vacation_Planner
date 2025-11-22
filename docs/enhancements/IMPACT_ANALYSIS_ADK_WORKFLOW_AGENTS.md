@@ -217,9 +217,54 @@ def _compile_booking_summary(self, results):
    - ❓ How does it track iterations and savings?
 
 4. **Return Value Structure**:
-   - ❓ What is the EXACT structure of results returned by ADK workflow agents?
-   - ❓ Do they include `status`, `_metadata`, `performance`, etc.?
+   - ✅ **ANSWERED**: ADK workflow agents return `AsyncGenerator[Event, None]`!
+   - ✅ **ANSWERED**: They require `InvocationContext` parameter, not direct input dict!
+   - ❓ How do we extract final results from the event stream?
    - ❓ Are they compatible with our Orchestrator's expectations?
+
+---
+
+## 🚨 CRITICAL DISCOVERY: ADK API is Fundamentally Different!
+
+**Date**: 2025-11-21 (Testing Phase)
+
+### ADK Agent API Signature
+
+```python
+# ADK's ParallelAgent/SequentialAgent/LoopAgent
+def run_async(self, parent_context: 'InvocationContext') -> 'AsyncGenerator[Event, None]'
+```
+
+### Our Custom Agent API Signature
+
+```python
+# Our BaseAgent
+async def execute(self, input_data: Dict[str, Any]) -> Dict[str, Any]
+```
+
+### Key Differences
+
+| Feature | Custom Agents | ADK Agents |
+|---------|--------------|------------|
+| **Method Name** | `execute()` | `run_async()` |
+| **Input Parameter** | `Dict[str, Any]` | `InvocationContext` |
+| **Return Type** | `Dict[str, Any]` (single result) | `AsyncGenerator[Event, None]` (event stream) |
+| **Usage Pattern** | `result = await agent.execute(data)` | `async for event in agent.run_async(ctx): ...` |
+
+### Implication: **NOT A DROP-IN REPLACEMENT!**
+
+⚠️ **We CANNOT simply replace custom agents with ADK agents** because:
+
+1. **Orchestrator expects** `result = await agent.execute(input_data)`
+2. **ADK agents expect** `InvocationContext` (not a simple dict)
+3. **ADK agents return** event stream (not a single result dict)
+4. **We need to consume events** and extract the final result
+
+### Options:
+
+**Option 1**: Wrapper agents that adapt ADK agents to our `execute()` API
+**Option 2**: Refactor Orchestrator to use ADK's event streaming model
+**Option 3**: Keep custom agents (safer, less refactoring)
 
 ---
 
