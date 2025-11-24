@@ -1,39 +1,33 @@
-# Google ADK and AI
-google-adk>=1.0.0
+# AI-Powered Vacation Planner Requirements
+# Google Agent Development Kit (ADK) Implementation
+
+# Core ADK
+google-generativeai>=0.5.0
+google-adk>=0.1.0
+
+# Google Cloud (for Vertex AI production deployment)
 google-cloud-aiplatform>=1.38.0
-google-generativeai>=0.3.0
 
-# MCP (Model Context Protocol)
-mcp>=0.5.0
-
-# Web framework
-aiohttp>=3.9.0
-httpx>=0.25.0
-fastapi>=0.104.0
-uvicorn>=0.24.0
-
-# Utilities
-pydantic>=2.5.0
+# External APIs
+requests>=2.31.0
 python-dotenv>=1.0.0
+
+# Data processing
+pandas>=2.0.0
+
+# Logging and monitoring
 loguru>=0.7.0
 
-# Document Generation
+# Document generation
 python-docx>=0.8.11
-
-# Search APIs
-tavily-python>=0.7.0
-
-# Google Cloud
-google-cloud-trace>=1.11.0
-google-cloud-monitoring>=2.15.0
-google-cloud-logging>=3.8.0
 
 # Testing
 pytest>=7.4.0
 pytest-asyncio>=0.21.0
-pytest-cov>=4.1.0
 
-# Code quality
-black>=23.9.0
-isort>=5.12.0
-flake8>=6.1.0
+# Optional: Weather API
+# Install if using OpenWeather API integration
+
+# Optional: Amadeus API
+# Install if using Amadeus flight/hotel APIs
+amadeus>=9.0.0
