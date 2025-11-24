@@ -10,6 +10,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 from tools.itinerary_tools import (
     generate_daily_itinerary,
     optimize_route,
@@ -85,7 +87,7 @@ IMPORTANT:
 - Account for typical weather at destination
 - Provide both must-do and optional activities
 - Consider traveler energy levels (rest after long flights)""",
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("itinerary"),
             tools=[
                 FunctionTool(generate_daily_itinerary),
                 FunctionTool(optimize_route),

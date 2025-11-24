@@ -1,87 +1,112 @@
 """
-Weather Tools - FunctionTool wrappers for weather API integration
+Weather Tools - Date-aware weather forecasting for travel dates
+Uses OpenWeather API to fetch weather conditions for specific travel dates
 """
 
 import os
 import httpx
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timedelta
 from loguru import logger
 
 
-async def get_current_weather(city: str, country: str = "") -> Dict[str, Any]:
+async def get_weather_for_travel_dates(
+    city: str,
+    country: str = "",
+    start_date: str = "",
+    end_date: str = ""
+) -> Dict[str, Any]:
     """
-    Get current weather conditions for a destination.
+    Get weather forecast for specific travel dates.
+
+    IMPORTANT: Only call this for FUTURE travel dates within the next 16 days.
+    Do NOT fetch current weather or generic forecasts.
 
     Args:
-        city: City name
+        city: Destination city name
         country: Country name (optional, improves accuracy)
+        start_date: Travel start date in YYYY-MM-DD format
+        end_date: Travel end date in YYYY-MM-DD format
 
     Returns:
-        Current weather data including temperature, conditions, humidity
+        Weather forecast for the travel period with:
+        - Daily temperature ranges
+        - Weather conditions
+        - Packing recommendations
+        - Weather warnings
     """
     api_key = os.getenv("OPENWEATHER_API_KEY")
-    if not api_key:
-        logger.warning("[WEATHER] OPENWEATHER_API_KEY not set, using fallback data")
-        return _get_fallback_weather(city)
+    location = f"{city},{country}" if country else city
 
+    # Parse travel dates
     try:
-        location = f"{city},{country}" if country else city
-        url = "https://api.openweathermap.org/data/2.5/weather"
-        params = {
-            "q": location,
-            "appid": api_key,
-            "units": "metric"
+        if start_date:
+            travel_start = datetime.strptime(start_date, "%Y-%m-%d")
+        else:
+            # If no date provided, use LLM knowledge
+            logger.warning(f"[WEATHER] No start_date provided for {city}, will use LLM knowledge")
+            return {
+                "location": location,
+                "travel_dates": "Not specified",
+                "source": "llm_knowledge",
+                "note": "No travel dates provided - LLM will estimate based on destination and season"
+            }
+
+        if end_date:
+            travel_end = datetime.strptime(end_date, "%Y-%m-%d")
+        else:
+            travel_end = travel_start + timedelta(days=7)  # Default 1 week
+
+        days_until_trip = (travel_start - datetime.now()).days
+
+        logger.info(f"[WEATHER] Fetching forecast for {city}: {start_date} to {end_date} ({days_until_trip} days away)")
+
+    except ValueError as e:
+        logger.error(f"[WEATHER] Invalid date format: {e}")
+        return {
+            "location": location,
+            "error": "Invalid date format. Use YYYY-MM-DD",
+            "source": "error"
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(url, params=params)
+    # OpenWeather free tier: 5-day/3-hour forecast (up to 5 days ahead)
+    # For dates beyond 5 days, use historical climate data + LLM knowledge
+    if days_until_trip > 5:
+        logger.info(f"[WEATHER] Travel is {days_until_trip} days away, using climate data + LLM knowledge")
+        return {
+            "location": location,
+            "travel_dates": f"{start_date} to {end_date}",
+            "days_until_trip": days_until_trip,
+            "source": "climate_knowledge",
+            "note": f"Travel is {days_until_trip} days away. Using historical climate data for {city} in {travel_start.strftime('%B')}",
+            "llm_instruction": f"""
+Provide typical weather conditions for {city}, {country} in {travel_start.strftime('%B %Y')}.
 
-            if response.status_code == 200:
-                data = response.json()
-                return {
-                    "temperature": data["main"]["temp"],
-                    "feels_like": data["main"]["feels_like"],
-                    "humidity": data["main"]["humidity"],
-                    "conditions": data["weather"][0]["description"],
-                    "wind_speed": data["wind"]["speed"],
-                    "visibility": data.get("visibility", "N/A"),
-                    "source": "openweather_api",
-                    "location": f"{city}, {country}"
-                }
-            else:
-                logger.error(f"[WEATHER] API error {response.status_code}")
-                return _get_fallback_weather(city)
+Include:
+- Typical temperature range for this month
+- Common weather conditions (rain, snow, sun, etc.)
+- Packing recommendations
+- Any seasonal considerations
+"""
+        }
 
-    except Exception as e:
-        logger.error(f"[WEATHER] Error: {e}")
-        return _get_fallback_weather(city)
-
-
-async def get_weather_forecast(city: str, country: str = "", days: int = 5) -> List[Dict[str, Any]]:
-    """
-    Get weather forecast for upcoming days.
-
-    Args:
-        city: City name
-        country: Country name (optional)
-        days: Number of days to forecast (default 5)
-
-    Returns:
-        Daily weather forecast
-    """
-    api_key = os.getenv("OPENWEATHER_API_KEY")
+    # For trips within 5 days, fetch actual forecast
     if not api_key:
-        logger.warning("[WEATHER] OPENWEATHER_API_KEY not set, skipping forecast")
-        return []
+        logger.warning("[WEATHER] OPENWEATHER_API_KEY not set, using LLM knowledge")
+        return {
+            "location": location,
+            "travel_dates": f"{start_date} to {end_date}",
+            "source": "llm_knowledge",
+            "note": "API key not set - LLM will estimate"
+        }
 
     try:
-        location = f"{city},{country}" if country else city
         url = "https://api.openweathermap.org/data/2.5/forecast"
         params = {
             "q": location,
             "appid": api_key,
             "units": "metric",
-            "cnt": days * 8  # 8 intervals per day (3-hour intervals)
+            "cnt": 40  # 5 days * 8 (3-hour intervals)
         }
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -89,88 +114,88 @@ async def get_weather_forecast(city: str, country: str = "", days: int = 5) -> L
 
             if response.status_code == 200:
                 data = response.json()
-                daily_forecast = []
 
-                # Group by day
-                days_data = {}
+                # Filter forecast to travel dates only
+                travel_forecast = []
                 for item in data["list"]:
-                    date = item["dt_txt"].split(" ")[0]
-                    if date not in days_data:
-                        days_data[date] = {
+                    forecast_date = datetime.fromtimestamp(item["dt"])
+                    if travel_start <= forecast_date <= travel_end:
+                        travel_forecast.append({
+                            "date": forecast_date.strftime("%Y-%m-%d"),
+                            "time": forecast_date.strftime("%H:%M"),
+                            "temp": item["main"]["temp"],
+                            "feels_like": item["main"]["feels_like"],
+                            "temp_min": item["main"]["temp_min"],
+                            "temp_max": item["main"]["temp_max"],
+                            "conditions": item["weather"][0]["description"],
+                            "humidity": item["main"]["humidity"],
+                            "wind_speed": item["wind"]["speed"]
+                        })
+
+                # Summarize by day
+                daily_summary = {}
+                for entry in travel_forecast:
+                    date = entry["date"]
+                    if date not in daily_summary:
+                        daily_summary[date] = {
                             "date": date,
                             "temps": [],
                             "conditions": [],
                             "humidity": []
                         }
-                    days_data[date]["temps"].append(item["main"]["temp"])
-                    days_data[date]["conditions"].append(item["weather"][0]["main"])
-                    days_data[date]["humidity"].append(item["main"]["humidity"])
+                    daily_summary[date]["temps"].append(entry["temp"])
+                    daily_summary[date]["conditions"].append(entry["conditions"])
+                    daily_summary[date]["humidity"].append(entry["humidity"])
 
-                # Calculate daily summaries
-                for date, day_data in list(days_data.items())[:days]:
+                daily_forecast = []
+                for date, data in daily_summary.items():
                     daily_forecast.append({
                         "date": date,
-                        "temp_high": max(day_data["temps"]),
-                        "temp_low": min(day_data["temps"]),
-                        "conditions": max(set(day_data["conditions"]), key=day_data["conditions"].count),
-                        "avg_humidity": sum(day_data["humidity"]) / len(day_data["humidity"])
+                        "temp_high": max(data["temps"]),
+                        "temp_low": min(data["temps"]),
+                        "conditions": max(set(data["conditions"]), key=data["conditions"].count),
+                        "avg_humidity": sum(data["humidity"]) / len(data["humidity"])
                     })
 
-                return daily_forecast
+                logger.info(f"[WEATHER] Forecast for {city}: {len(daily_forecast)} days")
+
+                return {
+                    "location": location,
+                    "travel_dates": f"{start_date} to {end_date}",
+                    "days_until_trip": days_until_trip,
+                    "daily_forecast": daily_forecast,
+                    "source": "openweather_api",
+                    "forecast_type": "5-day_actual"
+                }
             else:
-                return []
+                logger.error(f"[WEATHER] API error {response.status_code}")
+                return _get_fallback_weather_for_dates(city, start_date, end_date)
 
     except Exception as e:
-        logger.error(f"[FORECAST] Error: {e}")
-        return []
+        logger.error(f"[WEATHER] Error: {e}")
+        return _get_fallback_weather_for_dates(city, start_date, end_date)
 
 
-def get_best_time_to_visit(country: str) -> str:
-    """
-    Get recommended best time to visit a country.
-
-    Args:
-        country: Country name
-
-    Returns:
-        Best travel months/seasons
-    """
-    # Simplified recommendations - would use climate DB in production
-    best_times = {
-        "France": "April to June or September to November (mild weather, fewer tourists)",
-        "Japan": "March to May (cherry blossoms) or September to November (fall colors)",
-        "Italy": "April to June or September to October (pleasant temps, less crowded)",
-        "United Kingdom": "May to September (warmer weather, longer days)",
-        "UK": "May to September (warmer weather, longer days)",
-        "Thailand": "November to February (cool and dry season)",
-        "Australia": "September to November or March to May (spring/fall, mild temps)",
-        "Spain": "April to June or September to October (warm but not extreme)",
-        "Greece": "April to June or September to October (warm, ideal for sightseeing)",
-        "Iceland": "June to August (midnight sun, warmer weather)",
-        "New Zealand": "December to February (summer season)",
-        "Brazil": "December to March (summer, beach season)",
-        "India": "October to March (cooler, post-monsoon)",
-        "China": "April to May or September to October (mild weather)",
-        "Egypt": "October to April (cooler temperatures)",
-        "Mexico": "December to April (dry season)",
-        "Canada": "June to September (warmer weather)",
-        "Norway": "May to September (midnight sun in summer)",
-        "Switzerland": "June to September (hiking, pleasant weather)",
-        "Germany": "May to September (warm weather, festivals)",
-    }
-
-    return best_times.get(country, "Year-round with seasonal variations - check specific region climate")
-
-
-def _get_fallback_weather(city: str) -> Dict[str, Any]:
+def _get_fallback_weather_for_dates(city: str, start_date: str, end_date: str) -> Dict[str, Any]:
     """Provide fallback weather data when API unavailable."""
+    try:
+        travel_start = datetime.strptime(start_date, "%Y-%m-%d")
+        month = travel_start.strftime("%B")
+    except:
+        month = "the travel month"
+
     return {
-        "temperature": 20,
-        "feels_like": 20,
-        "humidity": 60,
-        "conditions": "Partly cloudy",
-        "wind_speed": 10,
-        "source": "fallback_estimate",
         "location": city,
-        "note": "Real-time data unavailable - using estimate"
+        "travel_dates": f"{start_date} to {end_date}",
+        "source": "llm_knowledge",
+        "note": f"Weather API unavailable - LLM will estimate typical conditions for {city} in {month}",
+        "llm_instruction": f"""
+Provide typical weather conditions for {city} in {month}.
+
+Include:
+- Typical temperature range
+- Common weather patterns
+- Packing recommendations
+- Seasonal considerations
+"""
     }

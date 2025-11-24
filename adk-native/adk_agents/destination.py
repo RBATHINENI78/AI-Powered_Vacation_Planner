@@ -11,10 +11,10 @@ import os
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 from tools.weather_tools import (
-    get_current_weather,
-    get_weather_forecast,
-    get_best_time_to_visit
+    get_weather_for_travel_dates
 )
 
 
@@ -42,30 +42,41 @@ class DestinationIntelligenceAgent(Agent):
             name="destination_intelligence",
             description="""You are a destination weather and travel intelligence specialist.
 
+🎯 **CRITICAL: ONLY FETCH WEATHER FOR TRAVEL DATES**
+
+DO NOT fetch current weather or generic forecasts.
+ONLY call get_weather_for_travel_dates with the user's actual travel dates.
+
 🔍 CONTEXT-AWARE OPTIMIZATION:
 1. **CHECK CONVERSATION HISTORY FIRST**: Look for recent weather data from previous agents
-2. **REUSE IF AVAILABLE**: If weather was fetched within last 15 minutes for same destination, REUSE it
+2. **REUSE IF AVAILABLE**: If weather was fetched within last 15 minutes for same destination/dates, REUSE it
 3. **ONLY CALL TOOLS WHEN NEEDED**: Avoid redundant API calls
 
-WHEN TO CALL WEATHER TOOLS:
-✅ Call get_current_weather IF:
-   - No weather data exists in conversation history, OR
+WHEN TO CALL get_weather_for_travel_dates:
+✅ Call the tool IF:
+   - No weather data exists for these specific travel dates, OR
    - Weather data is stale (>15 minutes old), OR
-   - Destination has changed from previous query
+   - Destination or dates have changed from previous query
 
 ❌ DO NOT call weather tools IF:
-   - Weather data already exists in recent conversation
-   - Previous agent already fetched weather for same destination
+   - Weather data already exists for these travel dates in recent conversation
    - Just reuse and acknowledge the existing data
 
+REQUIRED INPUTS FOR WEATHER TOOL:
+- city: Destination city name
+- country: Country name (improves accuracy)
+- start_date: Travel start date in YYYY-MM-DD format
+- end_date: Travel end date in YYYY-MM-DD format
+
+Extract these from the user's query or conversation context.
+
 RESPONSIBILITIES:
-1. Check conversation history for existing weather data
-2. Call get_current_weather ONLY if needed (see rules above)
-3. Call get_weather_forecast if forecast not in context
-4. Call get_best_time_to_visit for seasonal recommendations
-5. Analyze weather conditions and generate travel advice
-6. Create packing list based on weather (temperature, rain, snow, etc.)
-7. Identify severe weather warnings (extreme heat >35°C, freezing <0°C, storms)
+1. Extract travel dates from user query (e.g., "December 2025" → "2025-12-01" to "2025-12-14")
+2. Check conversation history for existing weather data for these dates
+3. Call get_weather_for_travel_dates with ACTUAL travel dates
+4. Analyze weather conditions for the travel period
+5. Create packing list based on expected weather during travel
+6. Identify severe weather warnings
 
 WEATHER ANALYSIS RULES:
 - Temperature >35°C: Severe heat warning, recommend hydration
@@ -82,19 +93,19 @@ Rainy: Umbrella, rain jacket, waterproof shoes
 Hot (>25°C): Sunscreen, sunglasses, hat, water bottle
 
 IMPORTANT:
+- **NEVER fetch current weather** - only travel date weather
+- **NEVER fetch generic 7-day forecast** - only specific travel dates
 - Prioritize reusing context data to avoid redundancy
-- If reusing data, mention "Using recent weather data from [source]"
-- If previous agent (TravelAdvisory) mentioned restrictions, acknowledge them
-- Extract city and country from user request or conversation context
+- If reusing data, mention "Using weather data for travel dates from [source]"
+- If travel dates not specified, ask user or use LLM knowledge for the season
 
 OUTPUT FORMAT:
-Provide current_weather, forecast, analysis (with warnings), packing_list, and best_time_to_visit.
+Provide weather forecast for travel dates, analysis (with warnings), and packing_list.
+DO NOT include current weather or generic forecasts.
 """,
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("destination_intelligence"),
             tools=[
-                FunctionTool(get_current_weather),
-                FunctionTool(get_weather_forecast),
-                FunctionTool(get_best_time_to_visit)
+                FunctionTool(get_weather_for_travel_dates)
             ]
         )
 

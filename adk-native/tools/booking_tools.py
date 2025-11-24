@@ -165,6 +165,9 @@ def estimate_hotel_cost(
     # Try Amadeus API first if available
     if USE_AMADEUS_API:
         try:
+            from loguru import logger
+            logger.info(f"[AMADEUS] Attempting to fetch real hotel data for {destination}")
+
             amadeus_result = search_hotels_amadeus_sync(
                 destination=destination,
                 check_in=checkin_date,
@@ -172,7 +175,9 @@ def estimate_hotel_cost(
                 guests=travelers,
                 rooms=1 if travelers <= 2 else 2
             )
+
             if "error" not in amadeus_result and "hotels" in amadeus_result:
+                logger.info(f"[AMADEUS] Successfully retrieved {len(amadeus_result.get('hotels', {}).get('budget', []))} hotels")
                 return {
                     "destination": destination,
                     "checkin_date": checkin_date,
@@ -182,10 +187,14 @@ def estimate_hotel_cost(
                     "hotel_class": hotel_class,
                     "source": "amadeus_api",
                     "hotels": amadeus_result["hotels"],
-                    "city_info": amadeus_result.get("city_info", {})
+                    "city_info": amadeus_result.get("city_info", {}),
+                    "note": "✅ Real hotel data from Amadeus API with booking links"
                 }
+            else:
+                logger.warning(f"[AMADEUS] API returned error or no hotels: {amadeus_result.get('error', 'Unknown')}")
         except Exception as e:
-            print(f"Amadeus API error, falling back to LLM: {e}")
+            from loguru import logger
+            logger.error(f"[AMADEUS] API error, falling back to LLM: {e}")
 
     # Fallback to LLM with detailed instructions
     return {

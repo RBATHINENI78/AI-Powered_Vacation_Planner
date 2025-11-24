@@ -4,6 +4,14 @@ MANDATORY HITL checkpoint to get user approval on high-level plan
 """
 
 from google.adk.agents import Agent
+from google.adk.tools import FunctionTool
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config import Config
+from tools.suggestions_tools import check_user_approval
 
 
 class SuggestionsCheckpointAgent(Agent):
@@ -24,7 +32,9 @@ class SuggestionsCheckpointAgent(Agent):
 🚨 CRITICAL RESPONSIBILITY: PRESENT CONCISE TRIP OVERVIEW FOR USER APPROVAL 🚨
 
 YOUR ROLE:
-Create a brief, scannable overview of the vacation plan with 5-7 key points.
+1. Create a brief, scannable overview of the vacation plan with 5-7 key points
+2. **MANDATORY:** Call check_user_approval() tool AFTER presenting the overview
+3. This will PAUSE the workflow until user responds
 
 MANDATORY FORMAT:
 
@@ -103,7 +113,11 @@ OUTPUT MUST:
 - End with STOP and approval request
 - NOT continue to itinerary generation
 
-This checkpoint ensures users stay engaged and approve the plan direction before detailed work begins.""",
-            model="gemini-2.0-flash",
-            tools=[]  # No tools needed - just synthesize from context
+This checkpoint ensures users stay engaged and approve the plan direction before detailed work begins.
+
+CRITICAL STEP:
+After presenting the overview, you MUST call check_user_approval() tool.
+This returns a pause signal that stops the workflow until user responds.""",
+            model=Config.get_model_for_agent("suggestions_checkpoint"),
+            tools=[FunctionTool(check_user_approval)]  # Pause tool
         )

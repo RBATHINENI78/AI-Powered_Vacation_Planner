@@ -10,6 +10,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 from tools.immigration_tools import (
     get_visa_requirements,
     get_passport_validity_rules,
@@ -90,7 +92,7 @@ IMPORTANT:
 - If previous agent mentioned travel restrictions, acknowledge them
 - Extract citizenship and destination from conversation context
 - Provide specific requirements, not generic advice""",
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("immigration_specialist"),
             tools=[
                 FunctionTool(get_visa_requirements),
                 FunctionTool(get_passport_validity_rules),

@@ -84,6 +84,11 @@ async def search_hotels_amadeus(
         if not parsed:
             continue
 
+        # Skip test properties
+        hotel_name = parsed.get("name", "").lower()
+        if "test" in hotel_name or "test property" in hotel_name:
+            continue
+
         if i < 3:
             categorized["budget"].append(parsed)
         elif i < 6:

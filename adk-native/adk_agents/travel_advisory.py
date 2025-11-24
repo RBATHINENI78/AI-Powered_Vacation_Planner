@@ -16,6 +16,7 @@ from loguru import logger
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from tools.travel_tools import check_state_dept_advisory, check_usa_travel_ban
+from config import Config
 
 # Optional Tavily integration
 try:
@@ -58,7 +59,7 @@ class TravelAdvisoryAgent(Agent):
             You will receive a structured response with can_proceed, blockers, and warnings.
 
             Present this information clearly to the user.""",
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("travel_advisory"),
             tools=[
                 FunctionTool(check_state_dept_advisory),
                 FunctionTool(check_usa_travel_ban)

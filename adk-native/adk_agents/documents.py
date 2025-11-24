@@ -9,6 +9,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 
 class DocumentGeneratorAgent(Agent):
     """
@@ -42,74 +44,46 @@ DOCUMENTS TO CREATE:
 - Total budget breakdown
 - Key highlights and must-dos
 
-**2. PRE-DEPARTURE CHECKLIST**
-- Documents to prepare (passport, visa, insurance)
-- Bookings to make (flights, hotels, activities)
-- Health requirements (vaccinations, prescriptions)
-- Financial preparation (currency, cards, notify bank)
-- Packing checklist
-- Home preparations (mail hold, pet care, etc.)
-- Weeks/days before departure timeline
+**2. PACKING LIST**
+Simple checklist with weather-appropriate items only.
+- Essential documents (ID, confirmations)
+- Weather-specific clothing
+- Basic toiletries
+- Electronics (phone, charger)
 
-**3. IMPORTANT INFORMATION SHEET**
-- Emergency contacts (embassy, local emergency numbers)
-- Hotel addresses and phone numbers
-- Confirmation numbers (flights, hotels, car rental)
-- Important addresses (attractions, restaurants)
-- Local customs and etiquette
-- Basic phrases in local language
-- Tipping guidelines
-
-**4. DAILY ITINERARY (Printable Format)**
-- Day-by-day schedule with times
-- Addresses and phone numbers
-- Reservation/booking numbers
-- Estimated costs for each day
-- Transportation instructions
-- Notes and tips sections
-
-**5. BUDGET TRACKER**
-- Pre-trip estimated costs by category
-- Actual spending tracker template
-- Currency conversion reference
-- Receipt organization tips
-
-**6. CONTACT LIST**
-- Embassy contact information
-- Hotel contact details
-- Emergency contacts back home
-- Travel insurance hotline
-- Credit card international numbers
-- Airlines customer service
-
-**7. PACKING LIST (Organized by Category)**
-- Documents and money
-- Clothing (by outfit/day)
-- Toiletries and medications
-- Electronics and accessories
-- Activity-specific items
-- Last-minute items checklist
+IMPORTANT - DO NOT INCLUDE:
+- ❌ Weeks/Days before departure timelines
+- ❌ Detailed customs/etiquette information
+- ❌ Basic phrases in local language
+- ❌ Tipping guidelines
+- ❌ Budget tracking templates
+- ❌ Lengthy contact lists (embassy, insurance, airlines, credit cards)
+- ❌ Pre-departure checklists with timelines
+- ❌ Emergency contacts back home
+- ❌ Detailed packing by category with item counts
+- ❌ Quick reference sheets
+- ❌ Contact information sections
 
 FORMATTING GUIDELINES:
-- Use clear headers and sections
-- Include checkboxes for checklists
-- Organize information logically
-- Use tables for schedules and budgets
-- Include page numbers for multi-page documents
-- Make it printer-friendly (black & white)
-- Include "Last Updated" date
+- Use clear, concise headers
+- Keep it brief and actionable
+- Use bullet points for lists
+- Include checkboxes for packing list
+- Make it simple and easy to scan
 
 OUTPUT FORMAT:
-Create professional, organized documents that compile all trip information into actionable checklists and reference sheets. Use markdown formatting with clear sections, tables, and bullet points.
+Create MINIMAL documents with:
+1. Trip summary (destination, dates, budget total)
+2. Simple packing list (10-15 essential items max)
 
-IMPORTANT:
-- Synthesize information from ALL previous agents
-- Don't invent information - use actual data from context
-- Organize by urgency (what to do first)
-- Include both digital and printable versions guidance
-- Add practical tips (photocopy passport, etc.)
-- Keep emergency info prominent
-- Make checklists actionable with checkboxes""",
-            model="gemini-2.0-flash",
+STRICT RULES:
+- Maximum 1 page total
+- NO contact lists, NO emergency numbers, NO reference sheets
+- NO detailed packing by category (just a simple list)
+- NO hotel details beyond what's in the itinerary
+- NO confirmation numbers section
+- Keep it minimal and focused only on the trip overview and basic packing
+- Use actual data from previous agents (don't invent)""",
+            model=Config.get_model_for_agent("document_generator"),
             tools=[]  # No external tools - synthesizes previous agent outputs
         )

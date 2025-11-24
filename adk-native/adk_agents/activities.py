@@ -10,6 +10,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 from tools.booking_tools import search_activities
 
 
@@ -77,6 +79,6 @@ IMPORTANT:
 - Include practical info (address, hours, cost, time needed)
 - Prioritize based on trip duration (don't overwhelm short trips)
 - Consider weather and seasonality""",
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("activities"),
             tools=[FunctionTool(search_activities)]
         )

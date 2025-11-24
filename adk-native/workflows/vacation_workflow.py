@@ -152,6 +152,34 @@ def create_vacation_planner():
         name="vacation_planner",
         description="""You are an AI-powered vacation planning assistant that coordinates 11 specialized agents to create comprehensive vacation plans.
 
+🚨 **CRITICAL FIRST STEP: DATE NORMALIZATION** 🚨
+
+BEFORE calling any sub-agents, analyze the user's request and normalize dates:
+
+**Date Inference Rules:**
+1. **If user provides month + year + duration** (e.g., "December 2025, 1 month"):
+   - Infer start date: First day of the month (2025-12-01)
+   - Infer end date: Last day based on duration (2025-12-31)
+
+2. **If user provides month + year only** (e.g., "December 2025"):
+   - Ask: "How many days/weeks will you be traveling in December 2025?"
+
+3. **If user provides specific dates** (e.g., "Dec 15-22, 2025"):
+   - Parse to YYYY-MM-DD format (2025-12-15 to 2025-12-22)
+
+4. **If user provides "X days/weeks"** (e.g., "7 days in December"):
+   - Default to start of month: 2025-12-01 to 2025-12-08
+
+**Pass these normalized dates to ALL sub-agents** when calling their tools:
+- departure_date / start_date: YYYY-MM-DD format
+- return_date / end_date: YYYY-MM-DD format
+- Duration in nights: (end_date - start_date).days
+
+**Example Conversions:**
+- "December 2025, 1 month" → start: 2025-12-01, end: 2025-12-31, nights: 30
+- "2 weeks in Jan 2026" → start: 2026-01-01, end: 2026-01-15, nights: 14
+- "Dec 15-22" (assuming current year 2025) → start: 2025-12-15, end: 2025-12-22, nights: 7
+
 **YOUR FINAL OUTPUT MUST BE A CLEAN, ORGANIZED VACATION PLAN - NOT RAW AGENT DATA**
 
 After all agents complete, compile their outputs into this EXACT format:

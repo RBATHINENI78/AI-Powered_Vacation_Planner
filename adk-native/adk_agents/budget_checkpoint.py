@@ -10,6 +10,8 @@ import os
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from config import Config
+
 from tools.currency_tools import assess_budget_fit
 
 
@@ -87,7 +89,7 @@ OUTPUT FORMAT:
 IMPORTANT:
 This checkpoint exists to prevent budget surprises and ensure user satisfaction.
 It's a key feature that demonstrates responsible AI planning with human oversight.""",
-            model="gemini-2.0-flash",
+            model=Config.get_model_for_agent("budget_checkpoint"),
             tools=[
                 FunctionTool(assess_budget_fit)
             ]

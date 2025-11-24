@@ -31,7 +31,7 @@ class AmadeusClient:
             "client_secret": self.client_secret
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             response = await client.post(url, data=data)
             if response.status_code == 200:
                 result = response.json()
@@ -81,7 +81,7 @@ class AmadeusClient:
         if return_date:
             params["returnDate"] = return_date
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, headers=headers, params=params)
 
             if response.status_code == 200:
@@ -122,7 +122,7 @@ class AmadeusClient:
             "hotelSource": "ALL"
         }
 
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(url, headers=headers, params=params)
 
             if response.status_code != 200:
