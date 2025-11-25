@@ -236,6 +236,10 @@ class TravelAdvisoryAgent(Agent):
         # Convert to lowercase for matching
         text_lower = input_text.lower()
 
+        # Pattern 0: Check for explicit "Origin:" field FIRST
+        origin_match = re.search(r'origin:\s*([^\n\r.]+?)(?:\s+citizenship:|$)', text_lower, re.IGNORECASE)
+        explicit_origin = origin_match.group(1).strip() if origin_match else None
+
         # Pattern 1: "to CITY, COUNTRY from ORIGIN"
         match = re.search(r'to\s+([^\.]+?)\s+from\s+([^\.]+?)(?:\.|$)', text_lower, re.IGNORECASE)
         if match:
@@ -244,15 +248,24 @@ class TravelAdvisoryAgent(Agent):
             # Clean up extra text (like dates, budget)
             destination = re.split(r'\s+travel dates|origin:|citizenship:|budget:', destination)[0].strip()
             origin = re.split(r'\s+citizenship:|budget:', origin)[0].strip()
+            # Override with explicit origin if provided
+            if explicit_origin:
+                origin = explicit_origin
             return origin, destination
 
-        # Pattern 2: "vacation to DESTINATION" (assume USA origin)
+        # Pattern 2: "vacation to DESTINATION"
         match = re.search(r'(?:vacation|trip)\s+to\s+([^\.]+?)(?:\s+for|\.|$)', text_lower, re.IGNORECASE)
         if match:
             destination = match.group(1).strip()
             # Clean up
             destination = re.split(r'\s+travel dates|origin:|citizenship:|budget:|for\s+\d+', destination)[0].strip()
-            return "USA", destination
+
+            # CRITICAL: Check for explicit origin field
+            if explicit_origin:
+                return explicit_origin, destination
+            else:
+                # Fallback: Assume USA origin only if not specified
+                return "USA", destination
 
         # Fallback
         return "USA", "Unknown"

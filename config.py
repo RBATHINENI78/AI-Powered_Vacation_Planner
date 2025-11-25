@@ -82,6 +82,34 @@ class Config:
         return cls.AGENT_MODELS.get(agent_name, cls.DEFAULT_MODEL)
 
     @classmethod
+    def get_model_config(cls, agent_name: str) -> Dict[str, Any]:
+        """
+        Get the complete model configuration for an agent.
+
+        Returns a dict with model name and Vertex AI configuration if available.
+        This ensures agents use Vertex AI when credentials are available.
+
+        Args:
+            agent_name: Name of the agent
+
+        Returns:
+            Dict with 'model' and optionally 'vertexai', 'project', 'location'
+        """
+        config = {
+            "model": cls.get_model_for_agent(agent_name)
+        }
+
+        # If Vertex AI credentials are available, add them
+        if cls.GOOGLE_APPLICATION_CREDENTIALS and cls.GOOGLE_CLOUD_PROJECT:
+            config.update({
+                "vertexai": True,
+                "project": cls.GOOGLE_CLOUD_PROJECT,
+                "location": cls.GOOGLE_CLOUD_LOCATION
+            })
+
+        return config
+
+    @classmethod
     def get_amadeus_base_url(cls) -> str:
         """Get Amadeus API base URL based on environment."""
         if cls.AMADEUS_ENV == "production":

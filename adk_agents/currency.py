@@ -36,17 +36,25 @@ class CurrencyExchangeAgent(Agent):
 
 WORKFLOW:
 
-**Step 1: Identify Currencies**
-- Call get_currency_for_country for origin country
-- Call get_currency_for_country for destination country
+**Step 1: Check if Domestic Travel**
+- Extract origin country and destination country from context
+- IF same country: Skip currency lookups, use common knowledge (USA=USD, France=EUR, etc.)
 
-**Step 2: Get Exchange Rate (CALL ONLY ONCE!)**
+**Step 2: Identify Currencies (ONLY if needed)**
 
 🔴 IF DOMESTIC TRAVEL (same country → same currency):
-   - SKIP get_exchange_rate entirely
+   - SKIP all currency API calls entirely!
    - Exchange rate = 1.0
    - Use origin currency for all amounts
    - Example: USA → USA means USD → USD, rate = 1.0
+   - NO need to call get_currency_for_country!
+
+🔵 IF INTERNATIONAL TRAVEL (different countries):
+   - Call get_currency_for_country ONCE for origin country
+   - Call get_currency_for_country ONCE for destination country
+   - This gives you 2 API calls total (not more!)
+
+**Step 3: Get Exchange Rate (CALL ONLY ONCE!)**
 
 🔵 IF INTERNATIONAL TRAVEL (different currencies):
    - Call get_exchange_rate ONCE with amount=1.0
@@ -82,12 +90,18 @@ DO NOT INCLUDE:
 - Tipping customs
 
 CRITICAL RULES:
+❌ NEVER call get_currency_for_country for domestic travel (same country)
 ❌ NEVER call get_exchange_rate multiple times
 ❌ NEVER call get_exchange_rate for domestic travel (same currency)
 ❌ NEVER call get_exchange_rate with different amounts for each budget item
+✅ ALWAYS check if domestic travel FIRST (skip all currency calls if yes)
 ✅ ALWAYS call get_exchange_rate max ONCE with amount=1.0 (for international only)
 ✅ ALWAYS multiply locally using the rate you got
-✅ ALWAYS skip exchange rate for domestic travel
+✅ ALWAYS skip all currency API calls for domestic travel
+
+**API Call Limits:**
+- Domestic travel (USA → USA): 0 API calls total
+- International travel (USA → France): 3 API calls max (2 for currencies + 1 for rate)
 
 EXAMPLE - DOMESTIC (USA → USA):
 Origin: Charlotte, USA → Destination: Salt Lake City, USA

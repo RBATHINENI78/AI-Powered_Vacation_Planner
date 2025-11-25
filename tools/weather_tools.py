@@ -17,10 +17,10 @@ async def get_weather_for_travel_dates(
     end_date: str = ""
 ) -> Dict[str, Any]:
     """
-    Get weather forecast for specific travel dates.
+    Get weather information for specific travel dates.
 
-    IMPORTANT: Only call this for FUTURE travel dates within the next 16 days.
-    Do NOT fetch current weather or generic forecasts.
+    For near-future dates (within 5 days): Returns actual weather forecast
+    For far-future dates (beyond 5 days): Returns historical climate data + LLM knowledge
 
     Args:
         city: Destination city name
@@ -29,8 +29,8 @@ async def get_weather_for_travel_dates(
         end_date: Travel end date in YYYY-MM-DD format
 
     Returns:
-        Weather forecast for the travel period with:
-        - Daily temperature ranges
+        Weather information for the travel period with:
+        - Daily temperature ranges (forecast or typical for season)
         - Weather conditions
         - Packing recommendations
         - Weather warnings
