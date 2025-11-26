@@ -142,7 +142,11 @@ def create_vacation_planner():
     """
     # Create phase workflows
     research_phase = create_research_phase()
-    booking_phase = create_booking_phase()
+
+    # Use budget fitting loop instead of simple parallel booking
+    # This automatically finds options within budget using tier progression
+    from workflows.budget_fitting_workflow import budget_fitting_loop
+
     budget_checkpoint = BudgetCheckpointAgent()
     suggestions_checkpoint = SuggestionsCheckpointAgent()
     organization_phase = create_organization_phase()
@@ -323,7 +327,7 @@ After all agents complete, compile their outputs into this EXACT format:
 6. **YOUR JOB:** Compile clean summary from all agent outputs""",
         sub_agents=[
             research_phase,
-            booking_phase,
+            budget_fitting_loop,  # Budget-aware booking with tier optimization
             budget_checkpoint,
             suggestions_checkpoint,
             organization_phase,

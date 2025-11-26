@@ -162,7 +162,7 @@ def _parse_flight(flight: Dict, travelers: int) -> Dict[str, Any]:
     }
 
 
-# Synchronous wrapper for non-async contexts
+# Synchronous wrapper compatible with uvloop
 def search_flights_amadeus_sync(
     origin: str,
     destination: str,
@@ -170,24 +170,15 @@ def search_flights_amadeus_sync(
     return_date: str,
     travelers: int = 2
 ) -> Dict[str, Any]:
-    """Synchronous version of search_flights_amadeus"""
-    import nest_asyncio
-    nest_asyncio.apply()
-
+    """Synchronous version of search_flights_amadeus (uvloop-compatible)"""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If already in an event loop, create a new task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    search_flights_amadeus(origin, destination, departure_date, return_date, travelers)
-                )
-                return future.result(timeout=30)
-        else:
-            return asyncio.run(search_flights_amadeus(
-                origin, destination, departure_date, return_date, travelers
-            ))
+        # Always use thread pool executor for uvloop compatibility
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                asyncio.run,
+                search_flights_amadeus(origin, destination, departure_date, return_date, travelers)
+            )
+            return future.result(timeout=30)
     except Exception as e:
         return {"error": str(e)}

@@ -37,6 +37,11 @@ class Config:
         "car_rental": "gemini-2.5-flash-lite",
         "document_generator": "gemini-2.5-flash-lite",
         "travel_advisory": "gemini-2.5-flash-lite",
+
+        # Budget fitting agents (LoopAgent implementation)
+        "budget_assessment": "gemini-2.0-flash-thinking-exp-1219",  # Complex STOP/CONTINUE logic
+        "tier_recommendation": "gemini-2.5-flash-lite",             # Simple tier selection
+        "budget_fitting_loop": "gemini-2.5-flash-lite",             # Loop orchestration
     }
 
     # ==================== API CONFIGURATION ====================
@@ -61,6 +66,14 @@ class Config:
     WEATHER_API_TIMEOUT = int(os.getenv("WEATHER_API_TIMEOUT", "30"))
     AMADEUS_API_TIMEOUT = int(os.getenv("AMADEUS_API_TIMEOUT", "15"))
     CURRENCY_API_TIMEOUT = int(os.getenv("CURRENCY_API_TIMEOUT", "10"))
+
+    # ==================== RATE LIMIT SETTINGS ====================
+
+    # Retry configuration for rate limits (free tier: 15 RPM)
+    # Enable automatic retry with 30-second wait for rate limit errors
+    ENABLE_RATE_LIMIT_RETRY = os.getenv("ENABLE_RATE_LIMIT_RETRY", "true").lower() == "true"
+    RATE_LIMIT_RETRY_DELAY = int(os.getenv("RATE_LIMIT_RETRY_DELAY", "30"))  # seconds
+    RATE_LIMIT_MAX_RETRIES = int(os.getenv("RATE_LIMIT_MAX_RETRIES", "3"))
 
     # ==================== LOGGING ====================
 

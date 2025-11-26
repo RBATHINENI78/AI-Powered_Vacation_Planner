@@ -152,7 +152,7 @@ def _parse_hotel(hotel: Dict, check_in: str, check_out: str, guests: int, rooms:
         return None
 
 
-# Synchronous wrapper
+# Synchronous wrapper compatible with uvloop
 def search_hotels_amadeus_sync(
     destination: str,
     check_in: str,
@@ -160,24 +160,15 @@ def search_hotels_amadeus_sync(
     guests: int = 2,
     rooms: int = 1
 ) -> Dict[str, Any]:
-    """Synchronous version of search_hotels_amadeus"""
-    import nest_asyncio
-    nest_asyncio.apply()
-
+    """Synchronous version of search_hotels_amadeus (uvloop-compatible)"""
     try:
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            # If already in an event loop, create a new task
-            import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor() as executor:
-                future = executor.submit(
-                    asyncio.run,
-                    search_hotels_amadeus(destination, check_in, check_out, guests, rooms)
-                )
-                return future.result(timeout=30)
-        else:
-            return asyncio.run(search_hotels_amadeus(
-                destination, check_in, check_out, guests, rooms
-            ))
+        # Always use thread pool executor for uvloop compatibility
+        import concurrent.futures
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            future = executor.submit(
+                asyncio.run,
+                search_hotels_amadeus(destination, check_in, check_out, guests, rooms)
+            )
+            return future.result(timeout=30)
     except Exception as e:
         return {"error": str(e)}
