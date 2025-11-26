@@ -63,3 +63,7 @@ htmlcov/
 *.tmp
 temp/
 tmp/
+
+# Generated vacation plan documents
+outputs/
+*.docx
