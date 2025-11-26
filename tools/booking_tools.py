@@ -67,20 +67,34 @@ def is_amadeus_test_data(data: Dict[str, Any]) -> bool:
 
     # Check flights for test data
     if "flights" in data:
-        flights = data.get("flights", [])
-        if not flights:
+        flights_data = data.get("flights")
+
+        # Handle categorized flights (dict with budget/mid_range/premium)
+        all_flights = []
+        if isinstance(flights_data, dict):
+            for category in ["budget", "mid_range", "premium"]:
+                if category in flights_data:
+                    all_flights.extend(flights_data[category])
+        elif isinstance(flights_data, list):
+            all_flights = flights_data
+        else:
+            return True  # Invalid structure
+
+        if not all_flights:
             return True
 
         # Check for Amadeus test booking URLs
-        for flight in flights:
+        for flight in all_flights:
+            if not isinstance(flight, dict):
+                continue
             url = flight.get("booking_url", "")
             if "amadeus.com/book" in url:
                 print("[BOOKING_TOOLS] Detected Amadeus test data (test booking URL)")
                 return True
 
         # Check if all prices are identical (common test data symptom)
-        if len(flights) >= 2:
-            prices = [f.get("price_per_person") for f in flights if f.get("price_per_person")]
+        if len(all_flights) >= 2:
+            prices = [f.get("price_per_person") for f in all_flights if isinstance(f, dict) and f.get("price_per_person")]
             if prices and len(set(prices)) == 1:
                 print("[BOOKING_TOOLS] Detected Amadeus test data (identical prices)")
                 return True
@@ -328,9 +342,43 @@ def estimate_hotel_cost(
                 logger.warning(f"[AMADEUS] API returned error or no hotels: {amadeus_result.get('error', 'Unknown')}")
         except Exception as e:
             from loguru import logger
-            logger.error(f"[AMADEUS] API error, falling back to LLM: {e}")
+            logger.error(f"[AMADEUS] API error, falling back to Tavily MCP: {e}")
 
-    # Fallback to LLM with detailed instructions
+    # Step 2: Fallback to Tavily MCP web search
+    if TAVILY_AVAILABLE:
+        try:
+            print(f"[HOTELS] Using Tavily MCP for hotel search in {destination}...")
+            tavily_mcp = get_tavily_mcp()
+
+            tavily_result = tavily_mcp.search_hotels(
+                destination=destination,
+                checkin=checkin_date,
+                checkout=checkout_date,
+                guests=travelers,
+                hotel_class=hotel_class
+            )
+
+            if "error" not in tavily_result:
+                print("[HOTELS] Tavily MCP search successful")
+                return {
+                    "destination": destination,
+                    "checkin_date": checkin_date,
+                    "checkout_date": checkout_date,
+                    "nights": nights,
+                    "travelers": travelers,
+                    "hotel_class": hotel_class,
+                    "source": "tavily_mcp",
+                    "search_results": tavily_result.get("results", []),
+                    "llm_instruction": tavily_result.get("llm_instruction", ""),
+                    "note": "✅ Real hotel search results from Booking.com, Hotels.com, Expedia via Tavily"
+                }
+            else:
+                print(f"[HOTELS] Tavily MCP error: {tavily_result.get('message')}, falling back to LLM")
+        except Exception as e:
+            print(f"[HOTELS] Tavily MCP error: {e}, falling back to LLM knowledge")
+
+    # Step 3: Final fallback to LLM with detailed instructions
+    print("[HOTELS] Using LLM knowledge fallback")
     return {
         "destination": destination,
         "checkin_date": checkin_date,
@@ -393,7 +441,7 @@ def estimate_car_rental_cost(
     car_type: str = "compact"
 ) -> Dict[str, Any]:
     """
-    Estimate car rental costs using LLM knowledge.
+    Estimate car rental costs using Tavily MCP → LLM fallback.
 
     Args:
         destination: Rental location
@@ -402,13 +450,57 @@ def estimate_car_rental_cost(
         car_type: Car type (economy/compact/midsize/suv/luxury)
 
     Returns:
-        Car rental cost estimation via LLM instruction
+        Car rental cost estimation with Tavily search results or LLM instruction
     """
+    # Calculate rental days
+    try:
+        from datetime import datetime
+        pickup_dt = datetime.strptime(pickup_date, "%Y-%m-%d")
+        dropoff_dt = datetime.strptime(dropoff_date, "%Y-%m-%d")
+        rental_days = (dropoff_dt - pickup_dt).days
+    except:
+        rental_days = 5  # Default
+
+    # Step 1: Try Tavily MCP web search first
+    if TAVILY_AVAILABLE:
+        try:
+            print(f"[CAR_RENTAL] Using Tavily MCP for car rental search in {destination}...")
+            tavily_mcp = get_tavily_mcp()
+
+            tavily_result = tavily_mcp.search_car_rentals(
+                pickup_location=destination,
+                dropoff_location=destination,  # Same location for now
+                pickup_date=pickup_date,
+                dropoff_date=dropoff_date,
+                car_type=car_type
+            )
+
+            if "error" not in tavily_result:
+                print("[CAR_RENTAL] Tavily MCP search successful")
+                return {
+                    "destination": destination,
+                    "pickup_date": pickup_date,
+                    "dropoff_date": dropoff_date,
+                    "rental_days": rental_days,
+                    "car_type": car_type,
+                    "source": "tavily_mcp",
+                    "search_results": tavily_result.get("results", []),
+                    "llm_instruction": tavily_result.get("llm_instruction", ""),
+                    "note": "✅ Real car rental search results from Kayak, Rentalcars.com, Enterprise, Budget via Tavily"
+                }
+            else:
+                print(f"[CAR_RENTAL] Tavily MCP error: {tavily_result.get('message')}, falling back to LLM")
+        except Exception as e:
+            print(f"[CAR_RENTAL] Tavily MCP error: {e}, falling back to LLM knowledge")
+
+    # Step 2: Fallback to LLM knowledge with detailed instructions
+    print("[CAR_RENTAL] Using LLM knowledge fallback")
     return {
         "destination": destination,
         "pickup_date": pickup_date,
         "dropoff_date": dropoff_date,
         "car_type": car_type,
+        "source": "llm_knowledge",
         "llm_instruction": f"""Estimate car rental costs in {destination} from {pickup_date} to {dropoff_date} for a {car_type} vehicle.
 
 **Car Rental Cost Estimation:**

@@ -211,9 +211,16 @@ class TavilyMCPServer:
         if "error" in results:
             return results
 
+        # Extract URLs from search results for user reference
+        search_urls = [r.get("url", "") for r in results.get("results", []) if r.get("url")]
+        url_list = "\n".join([f"  - {url}" for url in search_urls[:5]]) if search_urls else "  (No URLs found)"
+
         # Add LLM parsing instructions
         results["llm_instruction"] = f"""
 Based on the web search results, provide 3 DIVERSE flight options from {origin} to {destination}.
+
+**ACTUAL BOOKING URLs FROM SEARCH (Use these for booking links):**
+{url_list}
 
 **CRITICAL FORMATTING - MUST FOLLOW EXACTLY:**
 
@@ -323,28 +330,148 @@ Provide exactly 3 flight options with the format above.
         except:
             nights = 5  # Default
 
-        # Add LLM parsing instructions
+        # Add LLM parsing instructions with URL extraction
+        search_urls = [r.get("url", "") for r in results.get("results", []) if r.get("url")]
+        url_list = "\n".join([f"  - {url}" for url in search_urls[:5]]) if search_urls else "  (No URLs found)"
+
         results["llm_instruction"] = f"""
 Based on the web search results, provide 3 DIVERSE {hotel_class} hotel options in {destination}.
 
-Extract hotel names and prices from search results if available. Use your knowledge if needed.
+**CRITICAL: Include actual booking URLs from these search results:**
+{url_list}
 
-Provide DIVERSE options within {hotel_class} category:
-- Different neighborhoods/areas
-- Range of prices
-- Different amenities
+**REQUIRED FORMAT - Each hotel must include:**
 
-Format each hotel exactly as:
-- Hotel Name
-- $XX/night ($XXX total for {nights} nights)
-- Star rating, room type
-- Location/area
-- 2-3 key amenities
+Hotel Option 1: [Hotel Name from search results]
+- Description: [Brief description]
+- Location: [Neighborhood/area in {destination}]
+- Price: $XX/night ($XXX total for {nights} nights)
+- Amenities: [List 2-3 key features]
+- **Booking URL:** [Use actual URL from search results above - e.g., https://www.booking.com/... or https://www.hotels.com/...]
+
+Hotel Option 2: [Different hotel...]
+[Same format with actual booking URL]
+
+Hotel Option 3: [Different hotel...]
+[Same format with actual booking URL]
+
+**IMPORTANT:**
+- Extract hotel names and prices from the search results URLs above
+- MUST include the actual booking URLs from the search results
+- Provide DIVERSE options (different neighborhoods, price ranges, amenities)
+- Each hotel must have a clickable booking link for user reference
 
 **Destination:** {destination}
 **Dates:** {checkin} to {checkout} ({nights} nights)
 **Guests:** {guests}
 **Class:** {hotel_class}
+"""
+
+        return results
+
+    def search_car_rentals(
+        self,
+        pickup_location: str,
+        dropoff_location: str,
+        pickup_date: str,
+        dropoff_date: str,
+        car_type: str = "economy"
+    ) -> Dict[str, Any]:
+        """
+        Search for car rentals using Tavily web search.
+        Targets Kayak, Rentalcars.com, Enterprise, Budget.
+
+        Args:
+            pickup_location: Pickup city or airport code
+            dropoff_location: Drop-off city or airport code
+            pickup_date: Pickup date (YYYY-MM-DD)
+            dropoff_date: Drop-off date (YYYY-MM-DD)
+            car_type: Car type (economy, compact, midsize, suv, etc.)
+
+        Returns:
+            Search results with LLM parsing instructions
+        """
+        # Construct optimized query
+        if pickup_location == dropoff_location:
+            query = (
+                f"{car_type} car rental in {pickup_location} "
+                f"{pickup_date} to {dropoff_date}"
+            )
+        else:
+            query = (
+                f"{car_type} car rental {pickup_location} to {dropoff_location} "
+                f"pickup {pickup_date} dropoff {dropoff_date}"
+            )
+
+        logger.info(f"[TAVILY_MCP] Car rental search: {pickup_location} → {dropoff_location}")
+
+        # Search with car rental-specific domains
+        results = self.search(
+            query=query,
+            search_depth="advanced",
+            max_results=5,
+            include_domains=[
+                "kayak.com",
+                "rentalcars.com",
+                "enterprise.com",
+                "budget.com"
+            ]
+        )
+
+        if "error" in results:
+            return results
+
+        # Calculate rental days
+        try:
+            from datetime import datetime
+            pickup_dt = datetime.strptime(pickup_date, "%Y-%m-%d")
+            dropoff_dt = datetime.strptime(dropoff_date, "%Y-%m-%d")
+            rental_days = (dropoff_dt - pickup_dt).days
+        except:
+            rental_days = 5  # Default
+
+        # Extract URLs from search results for user reference
+        search_urls = [r.get("url", "") for r in results.get("results", []) if r.get("url")]
+        url_list = "\n".join([f"  - {url}" for url in search_urls[:5]]) if search_urls else "  (No URLs found)"
+
+        # Add LLM parsing instructions with URL extraction
+        results["llm_instruction"] = f"""
+Based on the web search results, provide 3 DIVERSE {car_type} car rental options.
+
+**CRITICAL: Include actual booking URLs from these search results:**
+{url_list}
+
+**REQUIRED FORMAT - Each car rental must include:**
+
+Car Rental Option 1: [Rental Company Name from search results]
+- Vehicle: [Specific car model, e.g., "Toyota Camry or similar"]
+- Type: {car_type.title()}
+- Pickup: {pickup_location} on {pickup_date}
+- Drop-off: {dropoff_location} on {dropoff_date}
+- Price: $XX/day ($XXX total for {rental_days} days)
+- Features: [e.g., "Automatic, Air Conditioning, 5 seats, Unlimited mileage"]
+- **Booking URL:** [Use actual URL from search results above - e.g., https://www.kayak.com/... or https://www.rentalcars.com/...]
+
+Car Rental Option 2: [Different rental company...]
+[Same format with actual booking URL]
+
+Car Rental Option 3: [Different rental company...]
+[Same format with actual booking URL]
+
+**IMPORTANT:**
+- Extract rental companies and prices from the search results URLs above
+- MUST include the actual booking URLs from the search results
+- Provide DIVERSE options (different companies, price ranges, vehicle sizes)
+- Each option must have a clickable booking link for user reference
+- Include realistic features (transmission, seats, mileage policy)
+
+**Rental Details:**
+- Pickup: {pickup_location}
+- Drop-off: {dropoff_location}
+- Pickup Date: {pickup_date}
+- Drop-off Date: {dropoff_date}
+- Rental Days: {rental_days}
+- Car Type: {car_type}
 """
 
         return results

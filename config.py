@@ -17,31 +17,38 @@ class Config:
     # ==================== MODEL CONFIGURATION ====================
 
     # Default model for all agents
-    # Using gemini-2.5-flash-lite to avoid rate limits
+    # Using gemini-2.5-flash-lite for better rate limits
     DEFAULT_MODEL = os.getenv("ADK_DEFAULT_MODEL", "gemini-2.5-flash-lite")
 
     # Per-agent model overrides (optional)
-    # If not specified, uses DEFAULT_MODEL
-    # Using flash-lite for all agents to avoid quota issues
+    # Strategy: Match model to task complexity for optimal performance and rate limits
     AGENT_MODELS: Dict[str, str] = {
-        # All agents use flash-lite to avoid rate limits
-        "itinerary": "gemini-2.5-flash-lite",
-        "budget_checkpoint": "gemini-2.5-flash-lite",
-        "activities": "gemini-2.5-flash-lite",
-        "suggestions_checkpoint": "gemini-2.5-flash-lite",
-        "destination_intelligence": "gemini-2.5-flash-lite",
-        "immigration_specialist": "gemini-2.5-flash-lite",
-        "currency_exchange": "gemini-2.5-flash-lite",
+        # Simple data retrieval - use lite for speed and rate limits
+        "travel_advisory": "gemini-2.5-flash-lite",          # Check advisories
+        "destination_intelligence": "gemini-2.5-flash-lite",  # Weather/packing
+        "immigration_specialist": "gemini-2.5-flash-lite",    # Visa requirements
+        "currency_exchange": "gemini-2.5-flash-lite",         # Currency conversion
+
+        # Booking agents - medium complexity, use lite (parallel execution)
         "flight_booking": "gemini-2.5-flash-lite",
         "hotel_booking": "gemini-2.5-flash-lite",
         "car_rental": "gemini-2.5-flash-lite",
-        "document_generator": "gemini-2.5-flash-lite",
-        "travel_advisory": "gemini-2.5-flash-lite",
+
+        # Complex planning - use 2.0-flash-exp for better reasoning
+        "activities": "gemini-2.0-flash-exp",                  # Creative activity planning
+        "itinerary": "gemini-2.0-flash-exp",                   # Complex scheduling
+        "suggestions_checkpoint": "gemini-2.0-flash-exp",      # Quality review
+
+        # Critical analysis - use thinking model
+        "budget_checkpoint": "gemini-2.0-flash-thinking-exp-1219",  # Budget analysis
+
+        # Document generation - needs quality
+        "document_generator": "gemini-2.0-flash-exp",
 
         # Budget fitting agents (LoopAgent implementation)
         "budget_assessment": "gemini-2.0-flash-thinking-exp-1219",  # Complex STOP/CONTINUE logic
-        "tier_recommendation": "gemini-2.5-flash-lite",             # Simple tier selection
-        "budget_fitting_loop": "gemini-2.5-flash-lite",             # Loop orchestration
+        "tier_recommendation": "gemini-2.5-flash-lite",       # Simple tier selection
+        "budget_fitting_loop": "gemini-2.5-flash-lite",       # Loop orchestration
     }
 
     # ==================== API CONFIGURATION ====================
