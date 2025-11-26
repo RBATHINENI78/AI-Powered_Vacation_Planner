@@ -1,6 +1,6 @@
 """
 Booking Tools - Flight, Hotel, and Car Rental search/estimation
-Uses LLM knowledge for flights and Amadeus API for real hotel data
+Hybrid approach: Amadeus MCP (primary) → Tavily MCP (fallback)
 """
 
 import os
@@ -12,6 +12,9 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
+# Import configuration
+from config import Config
+
 # Import Amadeus MCP servers
 try:
     from mcp_servers.amadeus_hotels import search_hotels_amadeus_sync
@@ -19,10 +22,83 @@ try:
     AMADEUS_AVAILABLE = True
 except ImportError:
     AMADEUS_AVAILABLE = False
-    print("Warning: Amadeus MCP servers not available, falling back to LLM estimates")
+    print("[BOOKING_TOOLS] Warning: Amadeus MCP servers not available, using Tavily MCP fallback")
 
-# Check if Amadeus API credentials are configured
-USE_AMADEUS_API = AMADEUS_AVAILABLE and os.getenv("AMADEUS_CLIENT_ID") and os.getenv("AMADEUS_CLIENT_ID") != "your_amadeus_client_id"
+# Import Tavily MCP server
+try:
+    from mcp_servers.tavily_search import get_tavily_mcp
+    TAVILY_AVAILABLE = True
+except ImportError:
+    TAVILY_AVAILABLE = False
+    print("[BOOKING_TOOLS] Warning: Tavily MCP server not available")
+
+# Check configuration flags
+USE_AMADEUS_API = (
+    Config.USE_AMADEUS_API and
+    AMADEUS_AVAILABLE and
+    not Config.FORCE_TAVILY_SEARCH and
+    os.getenv("AMADEUS_CLIENT_ID") and
+    os.getenv("AMADEUS_CLIENT_ID") != "your_amadeus_client_id"
+)
+
+print(f"[BOOKING_TOOLS] Configuration:")
+print(f"  - USE_AMADEUS_API: {USE_AMADEUS_API}")
+print(f"  - AMADEUS_ENV: {Config.AMADEUS_ENV}")
+print(f"  - AUTO_DETECT_TEST_DATA: {Config.AUTO_DETECT_TEST_DATA}")
+print(f"  - FORCE_TAVILY_SEARCH: {Config.FORCE_TAVILY_SEARCH}")
+print(f"  - TAVILY_AVAILABLE: {TAVILY_AVAILABLE}")
+
+
+def is_amadeus_test_data(data: Dict[str, Any]) -> bool:
+    """
+    Detect if Amadeus returned test/sandbox data.
+
+    Test data indicators:
+    - Booking URLs contain "amadeus.com/book"
+    - Multiple options with identical prices
+    - Test environment detected
+    """
+    if not data or not isinstance(data, dict):
+        return True
+
+    # Check if error in response
+    if "error" in data:
+        return True
+
+    # Check flights for test data
+    if "flights" in data:
+        flights = data.get("flights", [])
+        if not flights:
+            return True
+
+        # Check for Amadeus test booking URLs
+        for flight in flights:
+            url = flight.get("booking_url", "")
+            if "amadeus.com/book" in url:
+                print("[BOOKING_TOOLS] Detected Amadeus test data (test booking URL)")
+                return True
+
+        # Check if all prices are identical (common test data symptom)
+        if len(flights) >= 2:
+            prices = [f.get("price_per_person") for f in flights if f.get("price_per_person")]
+            if prices and len(set(prices)) == 1:
+                print("[BOOKING_TOOLS] Detected Amadeus test data (identical prices)")
+                return True
+
+    # Check hotels for test data
+    if "hotels" in data:
+        hotels = data.get("hotels", [])
+        if not hotels:
+            return True
+
+        # Check for test property names
+        for hotel in hotels:
+            name = hotel.get("name", "").lower()
+            if "test" in name or "sample" in name or "demo" in name:
+                print("[BOOKING_TOOLS] Detected Amadeus test data (test property name)")
+                return True
+
+    return False
 
 
 def estimate_flight_cost(
@@ -34,7 +110,10 @@ def estimate_flight_cost(
     cabin_class: str = "economy"
 ) -> Dict[str, Any]:
     """
-    Estimate flight costs using LLM knowledge with SPECIFIC airline recommendations.
+    Estimate flight costs using hybrid approach:
+    1. Try Amadeus MCP (if enabled and not test environment)
+    2. Detect test data and fallback to Tavily MCP
+    3. Final fallback to LLM knowledge
 
     Args:
         origin: Departure city/airport
@@ -45,10 +124,14 @@ def estimate_flight_cost(
         cabin_class: Cabin class (economy/premium/business/first)
 
     Returns:
-        Flight cost estimation with 3-5 specific airline options
+        Flight cost estimation with 3 specific airline options
     """
-    # Try Amadeus API first if available
-    if USE_AMADEUS_API:
+    print(f"[FLIGHTS] Searching: {origin} → {destination} ({departure_date} to {return_date})")
+
+    # Step 1: Try Amadeus API first if enabled
+    amadeus_data = None
+    if USE_AMADEUS_API and not Config.FORCE_TAVILY_SEARCH:
+        print(f"[FLIGHTS] Attempting Amadeus API ({Config.AMADEUS_ENV} environment)...")
         try:
             amadeus_result = search_flights_amadeus_sync(
                 origin=origin,
@@ -57,8 +140,10 @@ def estimate_flight_cost(
                 return_date=return_date,
                 travelers=travelers
             )
+
+            # Check if valid data received
             if "error" not in amadeus_result and "flights" in amadeus_result:
-                return {
+                amadeus_data = {
                     "origin": origin,
                     "destination": destination,
                     "departure_date": departure_date,
@@ -71,10 +156,53 @@ def estimate_flight_cost(
                     "origin_airport": amadeus_result.get("origin_airport", {}),
                     "destination_airport": amadeus_result.get("destination_airport", {})
                 }
-        except Exception as e:
-            print(f"Amadeus API error, falling back to LLM: {e}")
 
-    # Fallback to LLM with detailed instructions for specific airlines
+                # Step 2: Detect test data
+                if Config.AUTO_DETECT_TEST_DATA and is_amadeus_test_data(amadeus_data):
+                    print("[FLIGHTS] Amadeus test data detected, using Tavily MCP fallback")
+                    amadeus_data = None  # Trigger Tavily fallback
+                else:
+                    print(f"[FLIGHTS] Using Amadeus production data")
+                    return amadeus_data
+
+        except Exception as e:
+            print(f"[FLIGHTS] Amadeus API error: {e}, falling back to Tavily MCP")
+
+    # Step 3: Fallback to Tavily MCP if available
+    if TAVILY_AVAILABLE and (amadeus_data is None or Config.FORCE_TAVILY_SEARCH):
+        print("[FLIGHTS] Using Tavily MCP for flight search...")
+        try:
+            tavily_mcp = get_tavily_mcp()
+            tavily_result = tavily_mcp.search_flights(
+                origin=origin,
+                destination=destination,
+                departure_date=departure_date,
+                return_date=return_date,
+                adults=travelers,
+                cabin_class=cabin_class
+            )
+
+            if "error" not in tavily_result:
+                print("[FLIGHTS] Tavily MCP search successful")
+                return {
+                    "origin": origin,
+                    "destination": destination,
+                    "departure_date": departure_date,
+                    "return_date": return_date,
+                    "travelers": travelers,
+                    "cabin_class": cabin_class,
+                    "source": "tavily_mcp",
+                    "search_results": tavily_result.get("results", []),
+                    "llm_instruction": tavily_result.get("llm_instruction", "")
+                }
+            else:
+                print(f"[FLIGHTS] Tavily MCP error: {tavily_result.get('message', 'Unknown error')}")
+
+        except Exception as e:
+            print(f"[FLIGHTS] Tavily MCP error: {e}, falling back to LLM knowledge")
+
+    # Step 4: Final fallback to LLM knowledge
+    print("[FLIGHTS] Using LLM knowledge fallback")
     return {
         "origin": origin,
         "destination": destination,
@@ -82,6 +210,7 @@ def estimate_flight_cost(
         "return_date": return_date,
         "travelers": travelers,
         "cabin_class": cabin_class,
+        "source": "llm_knowledge",
         "llm_instruction": f"""Using your knowledge of airlines, routes, and airports, provide SPECIFIC flight information for {origin} to {destination}:
 
 **REQUIRED FORMAT - Provide 3-5 specific flight options like this:**

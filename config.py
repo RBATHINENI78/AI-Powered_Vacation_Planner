@@ -51,14 +51,24 @@ class Config:
     OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
     AMADEUS_CLIENT_ID = os.getenv("AMADEUS_CLIENT_ID")
     AMADEUS_CLIENT_SECRET = os.getenv("AMADEUS_CLIENT_SECRET")
+    TAVILY_API_KEY = os.getenv("TAVILY_API_KEY")
 
     # ==================== FEATURE FLAGS ====================
 
-    # Use Amadeus MCP for hotel bookings (requires credentials)
+    # Use Amadeus MCP for flight/hotel bookings (requires credentials)
+    # If False or Amadeus returns test data, fallback to Tavily MCP search
     USE_AMADEUS_API = os.getenv("USE_AMADEUS_API", "true").lower() == "true"
 
     # Amadeus environment: "test" or "production"
+    # When "test", system will detect test data and fallback to Tavily
     AMADEUS_ENV = os.getenv("AMADEUS_ENV", "test")
+
+    # Auto-detect Amadeus test data and fallback to Tavily
+    # When True, system detects test data patterns and uses Tavily MCP
+    AUTO_DETECT_TEST_DATA = os.getenv("AUTO_DETECT_TEST_DATA", "true").lower() == "true"
+
+    # Force Tavily MCP for all searches (bypass Amadeus completely)
+    FORCE_TAVILY_SEARCH = os.getenv("FORCE_TAVILY_SEARCH", "false").lower() == "true"
 
     # ==================== TIMEOUT SETTINGS ====================
 
