@@ -141,6 +141,11 @@ def estimate_flight_cost(
                 travelers=travelers
             )
 
+            # Validate result type
+            if not isinstance(amadeus_result, dict):
+                print(f"[FLIGHTS] Amadeus returned invalid type: {type(amadeus_result)}, falling back to Tavily MCP")
+                amadeus_result = {"error": "Invalid response type"}
+
             # Check if valid data received
             if "error" not in amadeus_result and "flights" in amadeus_result:
                 amadeus_data = {
