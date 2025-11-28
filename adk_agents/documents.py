@@ -60,116 +60,105 @@ The LoopAgent (budget_fitting_loop) has ALREADY selected the appropriate tier (l
    - From booking agents: Extract flight details, hotel details, car rental details
    - From itinerary: Extract day-by-day plan
 
-3. **CREATE ONE CLEAN SUMMARY WITH ALL OPTIONS**:
+3. **CREATE COMPREHENSIVE VACATION PLAN**:
 
-```
-# VACATION PLAN SUMMARY
+Create a well-organized vacation plan with these sections:
 
-## Trip Overview
-- **Destination**: [City, Country]
-- **Dates**: [Start date] to [End date] ([X] nights)
-- **Travelers**: [X] adults
-- **Budget**: $[total budget]
+SECTION 1: TRIP OVERVIEW
+- Destination, dates, number of nights, travelers
+- Total budget and estimated costs
+- Travel tier selected (if applicable)
 
-## Flight Options
+SECTION 2: TRAVEL ADVISORIES & REQUIREMENTS
+- Travel advisory status and safety information
+- Visa requirements and processing time
+- Passport validity requirements
+- Any travel warnings or precautions
 
-**Flight Option 1: [Airline Name]**
-- **Route**: [Origin Airport] → [Destination Airport]
-- **Flight Type**: [Direct/1 stop/2 stops]
-- **Duration**: Approximately [X] hours
-- **Price**: $[amount] per person ([class])
-- **Departure Time**: [time]
-- **Aircraft**: [type if available]
-- **Baggage**: [details if available]
+SECTION 3: DESTINATION INTELLIGENCE
+- Weather forecast for travel dates
+- Temperature range and conditions
+- Packing recommendations (clothing, gear, essentials)
+- Best time to visit context
 
-**Flight Option 2: [Airline Name]**
-- **Route**: [Origin Airport] → [Destination Airport]
-- **Flight Type**: [Direct/1 stop/2 stops]
-- **Duration**: Approximately [X] hours
-- **Price**: $[amount] per person ([class])
-- **Departure Time**: [time]
+SECTION 4: CURRENCY & MONEY
+- Local currency and current exchange rate
+- Estimated daily costs
+- Payment methods (cash, cards, ATMs)
+- Tipping customs
 
-**Flight Option 3: [Airline Name]**
-- **Route**: [Origin Airport] → [Destination Airport]
-- **Flight Type**: [Direct/1 stop/2 stops]
-- **Duration**: Approximately [X] hours
-- **Price**: $[amount] per person ([class])
-- **Departure Time**: [time]
+SECTION 5: FLIGHT OPTIONS (Show ALL 3 options from selected tier)
+For EACH flight option include:
+- Airline name and flight number (if available)
+- Route (origin → destination airports)
+- Flight type (direct/stops)
+- Duration and departure/arrival times
+- Price per person and total for all travelers
+- Class (economy/business/first)
+- Baggage allowance
+- Booking link (if available)
 
-[Show ALL 3 flight options from the selected tier]
+SECTION 6: HOTEL OPTIONS (Show ALL 3 options from selected tier)
+For EACH hotel option include:
+- Hotel name and star rating
+- Price per night and total for stay
+- Room type and occupancy
+- Location/neighborhood
+- Key amenities (WiFi, breakfast, parking, etc.)
+- Distance to attractions
+- Booking link (if available)
 
-## Hotel Options
+SECTION 7: CAR RENTAL OPTIONS
+For EACH car rental option include:
+- Vehicle category and specific model
+- Daily rate and total cost
+- Features (transmission, seats, mileage policy)
+- Recommendation (needed vs. optional)
+- Booking link (if available)
 
-**Hotel Option 1: [Hotel Name]**
-- **Price Per Night**: $[amount]
-- **Total Price** ([X] nights): $[total]
-- **Rating**: [X] stars
-- **Room Type**: [type]
-- **Location**: [area/neighborhood]
-- **Key Amenities**: [list 2-3 main amenities]
-- **Booking Link**: [link if available]
+SECTION 8: ACTIVITIES & ATTRACTIONS
+- Top recommended activities for this destination
+- Must-see attractions
+- Cultural experiences
+- Outdoor activities
+- Estimated costs per activity
 
-**Hotel Option 2: [Hotel Name]**
-- **Price Per Night**: $[amount]
-- **Total Price** ([X] nights): $[total]
-- **Rating**: [X] stars
-- **Room Type**: [type]
-- **Location**: [area/neighborhood]
-- **Key Amenities**: [list 2-3 main amenities]
-- **Booking Link**: [link if available]
+SECTION 9: DAILY ITINERARY
+Day-by-day breakdown with:
+- Date and day number
+- Morning, afternoon, evening activities
+- Recommended restaurants/dining
+- Transportation between locations
+- Estimated time and costs
 
-**Hotel Option 3: [Hotel Name]**
-- **Price Per Night**: $[amount]
-- **Total Price** ([X] nights): $[total]
-- **Rating**: [X] stars
-- **Room Type**: [type]
-- **Location**: [area/neighborhood]
-- **Key Amenities**: [list 2-3 main amenities]
-- **Booking Link**: [link if available]
+SECTION 10: BUDGET BREAKDOWN
+Detailed cost breakdown:
+- Flights: Total cost for selected option
+- Hotels: Total cost for selected option
+- Car Rental: Cost if needed
+- Activities: Estimated total
+- Food & Dining: Daily estimate × nights
+- Transportation: Local transit costs
+- Miscellaneous: Shopping, tips, emergencies
+- GRAND TOTAL vs Your Budget
+- Remaining amount or overage
 
-[Show ALL 3 hotel options from the selected tier]
+SECTION 11: PRACTICAL INFORMATION
+- Emergency contacts and embassy information
+- Local SIM card and data options
+- Public transportation guide
+- Important phrases in local language
+- Time zone difference
+- Electrical outlets and voltage
 
-## Car Rental Options
-
-**Car Rental Option 1: [Category]**
-- **Vehicle Type**: [Compact/Mid-size/Full-size/SUV]
-- **Estimated Cost**: $[amount] for [X] days
-- **Recommended**: [Yes/No based on necessity analysis]
-- **Reason**: [Why recommended or not needed]
-
-[Include all car rental tiers if multiple options provided]
-
-## Daily Itinerary
-
-**Day 1: [Date]**
-- [Activity/Location]
-- [Activity/Location]
-
-**Day 2: [Date]**
-- [Activity/Location]
-- [Activity/Location]
-
-[Continue for all days]
-
-## Cost Summary
-- **Flights**: $[amount] (based on selected tier)
-- **Hotels**: $[amount] (based on selected tier)
-- **Car Rental**: $[amount] or "Not needed"
-- **Activities**: $[estimated]
-- **Food**: $[estimated]
-- **TOTAL ESTIMATED**: $[total]
-- **Your Budget**: $[budget]
-- **Remaining/Over**: $[difference]
-
-## Important Information
-- **Weather**: [Brief weather summary for travel dates]
-- **Visa Requirements**: [Requirements or "Not required for US citizens"]
-- **Currency**: [Local currency and exchange rate]
-- **Travel Advisories**: [Any warnings or all clear]
-
----
-*Generated by AI Vacation Planner*
-```
+FORMATTING INSTRUCTIONS:
+- Use clear headers (## for sections, ### for subsections)
+- Use bullet points (-) for lists
+- Use bold (**text**) for labels and emphasis
+- Present ALL options (3 flights, 3 hotels, car rentals) with FULL details
+- DO NOT use code blocks or JSON
+- Write in clean, readable prose
+- Include booking links as markdown links: [Click here](URL)
 
 **STRICT RULES:**
 - **PRESERVE ALL 3 OPTIONS FROM THE SELECTED TIER**: Show ALL 3 flight options, ALL 3 hotel options from the tier that fits budget

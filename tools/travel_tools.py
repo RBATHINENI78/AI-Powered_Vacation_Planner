@@ -93,12 +93,24 @@ async def check_state_dept_advisory(country: str) -> Dict[str, Any]:
                     "source": "US State Department",
                     "not_found": True  # Signal that country wasn't in API database
                 }
+            else:
+                # API returned non-200 status (503, 404, etc.)
+                logger.error(f"[STATE_DEPT] API returned status {response.status_code}")
+                return {
+                    "country": country,
+                    "level": 1,
+                    "level_description": "Unable to fetch advisory",
+                    "advisory_text": f"API temporarily unavailable (status {response.status_code})",
+                    "source": "US State Department",
+                    "error": True
+                }
 
     except Exception as e:
         logger.error(f"[STATE_DEPT] API error: {e}")
+        # CRITICAL: Always return a dictionary, never None
         return {
             "country": country,
-            "level": 0,
+            "level": 1,  # Default to Level 1 instead of 0
             "level_description": "Unable to fetch advisory",
             "advisory_text": f"Error fetching advisory: {str(e)}",
             "source": "US State Department",
