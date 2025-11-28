@@ -102,16 +102,16 @@ def save_vacation_plan(
             "message": f"""✅ Vacation plan saved successfully!
 
 **Download Your Vacation Plan:**
-🔗 **Direct Download Link:** {download_url}
+🔗 **[Click Here to Download Your Vacation Plan]({download_url})**
 
 **File Details:**
 - Filename: {filename}
 - Location: {os.path.abspath(filepath)}
 - Format: Microsoft Word (.docx)
 
-**How to Download:**
+**Alternative Download Methods:**
 1. Click the link above, or
-2. Copy and paste this URL in your browser: {download_url}
+2. Copy and paste this URL in your browser: `{download_url}`
 
 Your vacation plan is ready to download!"""
         }
